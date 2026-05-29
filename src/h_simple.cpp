@@ -221,11 +221,11 @@ next_trans: /* */
                     if (StateMap)
                         memset(StateMap + i, MState, j);
                     if (B)
-                        MoveMem(B, C - Pos, Width, Line->Chars + i, HILIT_CLRD(), j);
+                        C += MoveMem(B, C - Pos, Width, Line->Chars + i, HILIT_CLRD(), j);
                     i += j;
                     len -= j;
                     p += j;
-                    C += j;
+
 
                     if (!(st->options & STATE_TAGASNEXT)) {
                         st = hm->state + State;

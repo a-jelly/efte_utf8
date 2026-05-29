@@ -72,11 +72,11 @@ int Hilit_C(EBuffer *BF, int /*LN*/, PCell B, int Pos, int Width, ELine *Line, h
                     if (StateMap)
                         memset(StateMap + i, State, j);
                     if (B)
-                        MoveMem(B, C - Pos, Width, Line->Chars + i, HILIT_CLRD(), j);
+                        C += MoveMem(B, C - Pos, Width, Line->Chars + i, HILIT_CLRD(), j);
                     i += j;
                     len -= j;
                     p += j;
-                    C += j;
+
                     State = hsC_Normal;
                     continue;
                 } else if ((len >= 2) && (*p == '/') && (*(p + 1) == '*')) {
@@ -236,11 +236,11 @@ int Hilit_C(EBuffer *BF, int /*LN*/, PCell B, int Pos, int Width, ELine *Line, h
                     if (StateMap)
                         memset(StateMap + i, State, j);
                     if (B)
-                        MoveMem(B, C - Pos, Width, Line->Chars + i, HILIT_CLRD(), j);
+                        C += MoveMem(B, C - Pos, Width, Line->Chars + i, HILIT_CLRD(), j);
                     i += j;
                     len -= j;
                     p += j;
-                    C += j;
+
                     continue;
                 } else if ((len >= 2) && (*p == '/') && (*(p + 1) == '*')) {
                     State = hsC_CPP_Comm;

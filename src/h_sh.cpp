@@ -257,11 +257,11 @@ int Hilit_SH(EBuffer *BF, int /*LN*/, PCell B, int Pos, int Width, ELine *Line, 
             if (StateMap)
                 memset(StateMap + i, State, j);
             if (B)
-                MoveMem(B, C - Pos, Width, p, HILIT_CLRD(), j);
+                C += MoveMem(B, C - Pos, Width, p, HILIT_CLRD(), j);
             i += j;
             len -= j;
             p += j;
-            C += j;
+
         }
     }
     if (State == hsSH_Comment || State == hsSH_Variable)
