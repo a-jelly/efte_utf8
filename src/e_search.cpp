@@ -634,7 +634,12 @@ ok_rep:
                 opt.lastInsertLen = strlen(opt.strReplace);
             }
             if (!(Options & SEARCH_BACK)) {
-                MatchLen = rlen;
+                /* MatchLen must be in screen columns, not bytes. */
+                {
+                    PELine RL = RLine(Match.Row);
+                    int b = CharOffset(RL, Match.Col);
+                    MatchLen = ScreenPos(RL, b + rlen) - Match.Col;
+                }
                 MatchCount = rlen;
             }
             if (ask == 'O')
