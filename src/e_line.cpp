@@ -9,6 +9,7 @@
  */
 
 #include "fte.h"
+#include "utf8.h"
 
 ELine::ELine(int ACount, const char *AChars) {
     Chars = NULL;
@@ -52,63 +53,15 @@ int ELine::Allocate(unsigned int Bytes) {
 }
 
 int EBuffer::ScreenPos(ELine *L, int Offset) {
-    int ExpandTabs = BFI(this, BFI_ExpandTabs);
-    int TabSize = BFI(this, BFI_TabSize);
-
-    if (!ExpandTabs) {
-        return Offset;
-    } else {
-        char *p = L->Chars;
-        int Len = L->Count;
-        int Pos = 0;
-        int Ofs = Offset;
-
-        if (Ofs > Len) {
-            while (Len > 0) {
-                if (*p++ != '\t')
-                    Pos++;
-                else
-                    Pos = NextTab(Pos, TabSize);
-                Len--;
-            }
-            Pos += Ofs - L->Count;
-        } else {
-            while (Ofs > 0) {
-                if (*p++ != '\t')
-                    Pos++;
-                else
-                    Pos = NextTab(Pos, TabSize);
-                Ofs--;
-            }
-        }
-        return Pos;
-    }
+    return utf8_byte_to_col(L->Chars, L->Count, Offset,
+                            BFI(this, BFI_ExpandTabs),
+                            BFI(this, BFI_TabSize));
 }
 
 int EBuffer::CharOffset(ELine *L, int ScreenPos) {
-    int ExpandTabs = BFI(this, BFI_ExpandTabs);
-    int TabSize = BFI(this, BFI_TabSize);
-
-    if (!ExpandTabs) {
-        return ScreenPos;
-    } else {
-        int Pos = 0;
-        int Ofs = 0;
-        char *p = L->Chars;
-        int Len = L->Count;
-
-        while (Len > 0) {
-            if (*p++ != '\t')
-                Pos++;
-            else
-                Pos = NextTab(Pos, TabSize);
-            if (Pos > ScreenPos)
-                return Ofs;
-            Ofs++;
-            Len--;
-        }
-        return Ofs + ScreenPos - Pos;
-    }
+    return utf8_col_to_byte(L->Chars, L->Count, ScreenPos,
+                            BFI(this, BFI_ExpandTabs),
+                            BFI(this, BFI_TabSize));
 }
 
 int EBuffer::Allocate(int ACount) {
