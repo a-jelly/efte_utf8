@@ -91,7 +91,40 @@ typedef TAttr *PAttr;
 #ifdef NTCONSOLE
 typedef unsigned long TCell;
 #else
-typedef unsigned short TCell;
+/*
+ * TCell on Unix is now 32 bits:
+ *   bits  7.. 0  — first UTF-8 byte (or ASCII character)
+ *   bits 15.. 8  — second UTF-8 byte (0 if not used)
+ *   bits 23..16  — third UTF-8 byte  (0 if not used)
+ *   bits 31..24  — colour attribute
+ *
+ * Four-byte UTF-8 sequences (U+10000 and above) are rare in practice;
+ * they are handled via the utf8_col_buf fallback in the display layer.
+ *
+ * Helper macros:
+ */
+typedef unsigned int TCell;
+
+#define TCELL_MAKE(b0, b1, b2, attr) \
+    ( ((unsigned int)(unsigned char)(b0))        | \
+      ((unsigned int)(unsigned char)(b1) << 8)   | \
+      ((unsigned int)(unsigned char)(b2) << 16)  | \
+      ((unsigned int)(unsigned char)(attr) << 24) )
+
+#define TCELL_MAKE1(ch, attr)   TCELL_MAKE(ch, 0, 0, attr)
+
+#define TCELL_B0(cell)   ((unsigned char)((cell)       & 0xFF))
+#define TCELL_B1(cell)   ((unsigned char)(((cell) >>  8) & 0xFF))
+#define TCELL_B2(cell)   ((unsigned char)(((cell) >> 16) & 0xFF))
+#define TCELL_ATTR(cell) ((unsigned char)(((cell) >> 24) & 0xFF))
+
+/* Number of valid UTF-8 bytes stored in a TCell */
+static inline int tcell_seqlen(TCell c) {
+    if (TCELL_B1(c) == 0) return 1;
+    if (TCELL_B2(c) == 0) return 2;
+    return 3;
+}
+
 #endif
 
 typedef TCell *PCell;
@@ -192,7 +225,7 @@ int ConPutEvent(TEvent Event);
 
 void MoveCh(PCell B, char Ch, TAttr Attr, int Count);
 void MoveChar(PCell B, int Pos, int Width, const char Ch, TAttr Attr, int Count);
-void MoveMem(PCell B, int Pos, int Width, const char* Ch, TAttr Attr, int Count);
+int  MoveMem(PCell B, int Pos, int Width, const char* Ch, TAttr Attr, int Count);
 void MoveStr(PCell B, int Pos, int Width, const char* Ch, TAttr Attr, int MaxCount);
 void MoveCStr(PCell B, int Pos, int Width, const  char* Ch, TAttr A0, TAttr A1, int MaxCount);
 void MoveAttr(PCell B, int Pos, int Width, TAttr Attr, int Count);
@@ -208,6 +241,7 @@ int GetMenuId(const char *Name);
 char ConGetDrawChar(int index);
 
 extern char WindowFont[64];
+extern int  FontSize;     /* Xft font size in points; 0 = auto */
 
 typedef struct {
     unsigned char r, g, b;
