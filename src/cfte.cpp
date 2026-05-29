@@ -284,6 +284,7 @@ static const OrdLookup global_string[] = {
     MODE_FLG(PrintDevice),
     MODE_FLG(CompileCommand),
     MODE_FLG(WindowFont),
+    MODE_FLG(FontSize),
     MODE_FLG(HelpCommand),
     MODE_FLG(GUICharacters),
     MODE_FLG(CvsCommand),

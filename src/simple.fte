@@ -86,8 +86,14 @@ UndoMoves = 0;WordWrap = 0;
 mode SOURCE:PLAIN {}
 object GLOBAL {
 DefaultModeName = "PLAIN";
-WindowFont = "9x15";
+#WindowFont = "9x15";
 #WindowFont = "*-fixed-bold-*-15*,*-fixed-bold-*-16*";
+# For Xft (USE_XFT build): FontSize sets point size, WindowFont sets family.
+# Examples:
+#   WindowFont = "DejaVu Sans Mono"; FontSize = 12;
+    WindowFont = "JetBrains Mono:size=13";   # full pattern, FontSize ignored
+    FontSize = 12;                           # system monospace at 14pt
+FontSize = 0;
 }
 menu Object {
 item "&Open...\tF3" {FileOpen;}

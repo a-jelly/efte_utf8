@@ -60,6 +60,7 @@ int KeepHistory = 0;
 int LoadDesktopOnEntry = 0;
 int SaveDesktopOnExit = 0;
 char WindowFont[64] = "";
+int  FontSize = 0;  /* 0 = use default / take from WindowFont pattern */
 // Custom RGB colors (if console driver supports them)
 TRGBColor RGBColor[16];
 // true if corresponding triplet in RGBColor is valid
@@ -414,6 +415,9 @@ static int SetGlobalString(long what, const char *string) {
         break;
     case FLAG_WindowFont:
         strlcpy(WindowFont, string, sizeof(WindowFont));
+        break;
+    case FLAG_FontSize:
+        FontSize = atoi(string);
         break;
     case FLAG_HelpCommand:
         strlcpy(HelpCommand, string, sizeof(HelpCommand));
