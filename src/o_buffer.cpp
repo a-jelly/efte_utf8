@@ -135,11 +135,15 @@ void EEditPort::HandleEvent(TEvent &Event) {
     EViewPort::HandleEvent(Event);
     switch (Event.What) {
     case evKeyDown: {
-        char Ch;
-        if (GetCharFromEvent(Event, &Ch)) {
+        char utf8buf[5];
+        int utf8len = GetUtf8FromEvent(Event, utf8buf);
+        if (utf8len > 0) {
             if (Buffer->BeginMacro() == 0)
                 return ;
-            Buffer->TypeChar(Ch);
+            if (utf8len == 1)
+                Buffer->TypeChar(utf8buf[0]);
+            else
+                Buffer->InsertString(utf8buf, utf8len);
             Event.What = evNone;
         }
     }

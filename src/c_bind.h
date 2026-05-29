@@ -154,6 +154,7 @@ extern int CMacros;
 extern ExMacro *Macros;
 
 int GetCharFromEvent(TEvent &E, char *Ch);
+int GetUtf8FromEvent(TEvent &E, char *buf); /* returns UTF-8 bytes, buf>=5 */
 
 const char *GetCommandName(int Command);
 EMode *FindMode(const char *Name);

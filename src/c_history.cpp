@@ -269,6 +269,7 @@ int AddInputHistory(int Id, const char *String) { /*FOLD00*/
     char *s = NULL; // get rid of a "might not be initialised" warning
     int i;
     // First check if it is already in list
+    // printf("Current count: %d\n",inputHistory.Count);
     for (i = 0; i < inputHistory.Count; i++) {
         if (inputHistory.Id[i] == Id && strcmp(String, inputHistory.Line[i]) == 0) {
             // Found, will be moved to the beginning of list
@@ -309,14 +310,16 @@ int CountInputHistory(int Id) { /*FOLD00*/
 int GetInputHistory(int Id, char *String, int len, int Nth) { /*FOLD00*/
     int i = 0;
 
-    assert(len > 0);
 
+    // printf("Get input history: Id:%d, N:%d\n", Id, Nth);
+    assert(len > 0);
     while (i < inputHistory.Count) {
         if (inputHistory.Id[i] == Id) {
             Nth--;
             if (Nth == 0) {
                 strncpy(String, inputHistory.Line[i], len);
                 String[len - 1] = 0;
+                // printf("Res: [%s]\n", String);
                 return 1;
             }
         }

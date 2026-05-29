@@ -136,6 +136,44 @@ int GetCharFromEvent(TEvent &E, char *Ch) {
     return 0;
 }
 
+/*
+ * Like GetCharFromEvent but returns a full UTF-8 sequence for
+ * Unicode codepoints > 127.  buf must be at least 5 bytes.
+ * Returns number of bytes written, or 0 if not a printable event.
+ */
+int GetUtf8FromEvent(TEvent &E, char *buf) {
+    char ch = 0;
+    /* handle single-byte cases via existing function */
+    if (GetCharFromEvent(E, &ch)) {
+        buf[0] = ch;
+        buf[1] = '\0';
+        return 1;
+    }
+    /* Unicode codepoint stored directly in Key.Code */
+    unsigned long cp = (unsigned long)(E.Key.Code & ~kfModifier);
+    if (cp >= 0x80 && !(E.Key.Code & (kfAlt | kfCtrl))) {
+        int len = 0;
+        if (cp < 0x800) {
+            buf[len++] = (char)(0xC0 | (cp >> 6));
+            buf[len++] = (char)(0x80 | (cp & 0x3F));
+        } else if (cp < 0x10000) {
+            buf[len++] = (char)(0xE0 | (cp >> 12));
+            buf[len++] = (char)(0x80 | ((cp >> 6) & 0x3F));
+            buf[len++] = (char)(0x80 | (cp & 0x3F));
+        } else if (cp < 0x110000) {
+            buf[len++] = (char)(0xF0 | (cp >> 18));
+            buf[len++] = (char)(0x80 | ((cp >> 12) & 0x3F));
+            buf[len++] = (char)(0x80 | ((cp >> 6) & 0x3F));
+            buf[len++] = (char)(0x80 | (cp & 0x3F));
+        }
+        if (len > 0) {
+            buf[len] = '\0';
+            return len;
+        }
+    }
+    return 0;
+}
+
 int CompletePath(const char *Base, char *Match, int Count) {
     char Name[MAXPATH];
     const char *dirp;
