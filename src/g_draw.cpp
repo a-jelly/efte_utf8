@@ -9,6 +9,7 @@
  */
 
 #include "console.h"
+#include "utf8.h"
 
 #ifdef  NTCONSOLE
 #   define  WIN32_LEAN_AND_MEAN 1
@@ -32,121 +33,140 @@ int CStrLen(const char *p) {
 #ifndef NTCONSOLE
 
 void MoveCh(PCell B, char CCh, TAttr Attr, int Count) {
-    unsigned char *p = (unsigned char *) B;
-    while (Count > 0) {
-        *p++ = (unsigned char) CCh;
-        *p++ = (unsigned char) Attr;
-        Count--;
-    }
+    TCell cell = TCELL_MAKE1((unsigned char)CCh, Attr);
+    while (Count-- > 0)
+        *B++ = cell;
 }
 
 void MoveChar(PCell B, int Pos, int Width, const char CCh, TAttr Attr, int Count) {
-    unsigned char *p = (unsigned char *) B;
-    if (Pos < 0) {
-        Count += Pos;
-        Pos = 0;
-    }
+    if (Pos < 0) { Count += Pos; Pos = 0; }
     if (Pos >= Width) return;
     if (Pos + Count > Width) Count = Width - Pos;
     if (Count <= 0) return;
-    for (p += sizeof(TCell) * Pos; Count > 0; Count--) {
-        *p++ = (unsigned char) CCh;
-        *p++ = (unsigned char) Attr;
-    }
+    TCell cell = TCELL_MAKE1((unsigned char)CCh, Attr);
+    B += Pos;
+    while (Count-- > 0)
+        *B++ = cell;
 }
 
-void MoveMem(PCell B, int Pos, int Width, const char* Ch, TAttr Attr, int Count) {
-    unsigned char *p = (unsigned char *) B;
+int MoveMem(PCell B, int Pos, int Width, const char *Ch, TAttr Attr, int Count) {
+    if (Pos < 0) { Count += Pos; Ch -= Pos; Pos = 0; }
+    if (Pos >= Width || Count <= 0) return 0;
 
-    if (Pos < 0) {
-        Count += Pos;
-        Ch -= Pos;
-        Pos = 0;
-    }
-    if (Pos >= Width) return;
-    if (Pos + Count > Width) Count = Width - Pos;
-    if (Count <= 0) return;
-    for (p += sizeof(TCell) * Pos; Count > 0; Count--) {
-        *p++ = (unsigned char)(*Ch++);
-        *p++ = (unsigned char) Attr;
-    }
-}
+    B += Pos;
+    const char *src = Ch;
+    int remaining = Count;
+    int col = Pos;
 
-void MoveStr(PCell B, int Pos, int Width, const char* Ch, TAttr Attr, int MaxCount) {
-    unsigned char *p = (unsigned char *) B;
+    while (remaining > 0 && col < Width) {
+        unsigned char c0 = (unsigned char)*src;
 
-    if (Pos < 0) {
-        MaxCount += Pos;
-        Ch -= Pos;
-        Pos = 0;
-    }
-    if (Pos >= Width) return;
-    if (Pos + MaxCount > Width) MaxCount = Width - Pos;
-    if (MaxCount <= 0) return;
-    for (p += sizeof(TCell) * Pos; MaxCount > 0 && (*Ch != 0); MaxCount--) {
-        *p++ = (unsigned char)(*Ch++);
-        *p++ = (unsigned char) Attr;
-    }
-}
+        if (c0 < 0x80) {
+            *B++ = TCELL_MAKE1(c0, Attr);
+            src++; remaining--; col++;
+        } else if (utf8_is_cont(c0)) {
+            /* lone continuation byte — skip, don't allocate a column */
+            src++; remaining--;
+        } else {
+            int consumed;
+            unsigned long cp = utf8_decode(src, &consumed);
+            int w = utf8_codepoint_width(cp);
+            if (consumed > remaining) consumed = remaining;
 
-void MoveCStr(PCell B, int Pos, int Width, const char* Ch, TAttr A0, TAttr A1, int MaxCount) {
-    unsigned char *p = (unsigned char *) B;
+            unsigned char b1 = (consumed >= 2) ? (unsigned char)src[1] : 0;
+            unsigned char b2 = (consumed >= 3) ? (unsigned char)src[2] : 0;
+            *B++ = TCELL_MAKE(c0, b1, b2, Attr);
+            src += consumed; remaining -= consumed; col++;
 
-    char was = 0;
-    if (Pos < 0) {
-        MaxCount += Pos;
-        Ch -= Pos;
-        Pos = 0;
-    }
-    if (Pos >= Width) return;
-    if (Pos + MaxCount > Width) MaxCount = Width - Pos;
-    if (MaxCount <= 0) return;
-    for (p += sizeof(TCell) * Pos; MaxCount > 0 && (*Ch != 0); MaxCount--) {
-        if (*Ch == '&' && !was) {
-            Ch++;
-            MaxCount++;
-            was = 1;
-            continue;
+            if (w == 2 && col < Width) {
+                *B++ = TCELL_MAKE1(0, Attr);
+                col++;
+            }
         }
-        *p++ = (unsigned char)(*Ch++);
-        if (was) {
-            *p++ = (unsigned char) A1;
-            was = 0;
-        } else
-            *p++ = (unsigned char) A0;
+    }
+    return col - Pos; /* columns written */
+}
+
+void MoveStr(PCell B, int Pos, int Width, const char *Ch, TAttr Attr, int MaxCount) {
+    if (Pos < 0) { MaxCount += Pos; Ch -= Pos; Pos = 0; }
+    if (Pos >= Width) return;
+    if (MaxCount <= 0) return;
+
+    B += Pos;
+    int col = Pos;
+
+    while (*Ch && col < Width) {
+        unsigned char c0 = (unsigned char)*Ch;
+
+        if (c0 < 0x80) {
+            /* ASCII */
+            *B++ = TCELL_MAKE1(c0, Attr);
+            Ch++;
+            col++;
+        } else {
+            /* UTF-8 multi-byte */
+            int consumed;
+            unsigned long cp = utf8_decode(Ch, &consumed);
+            int w = utf8_codepoint_width(cp);
+
+            unsigned char b0 = c0;
+            unsigned char b1 = (consumed >= 2) ? (unsigned char)Ch[1] : 0;
+            unsigned char b2 = (consumed >= 3) ? (unsigned char)Ch[2] : 0;
+            /* 4-byte sequences: store first 3 bytes, output layer uses utf8_col_buf */
+
+            *B++ = TCELL_MAKE(b0, b1, b2, Attr);
+            Ch += consumed;
+            col++;
+
+            /* double-width: write a zero-char placeholder */
+            if (w == 2 && col < Width) {
+                *B++ = TCELL_MAKE1(0, Attr);
+                col++;
+            }
+        }
+    }
+}
+
+void MoveCStr(PCell B, int Pos, int Width, const char *Ch, TAttr A0, TAttr A1, int MaxCount) {
+    if (Pos < 0) { MaxCount += Pos; Ch -= Pos; Pos = 0; }
+    if (Pos >= Width) return;
+    if (Pos + MaxCount > Width) MaxCount = Width - Pos;
+    if (MaxCount <= 0) return;
+    B += Pos;
+    int was = 0;
+    while (MaxCount > 0 && *Ch) {
+        if (*Ch == '&' && !was) { Ch++; MaxCount++; was = 1; continue; }
+        TAttr a = was ? A1 : A0;
+        *B++ = TCELL_MAKE1((unsigned char)*Ch++, a);
+        was = 0;
+        MaxCount--;
     }
 }
 
 void MoveAttr(PCell B, int Pos, int Width, TAttr Attr, int Count) {
-    unsigned char *p = (unsigned char *) B;
-
-    if (Pos < 0) {
-        Count += Pos;
-        Pos = 0;
-    }
+    if (Pos < 0) { Count += Pos; Pos = 0; }
     if (Pos >= Width) return;
     if (Pos + Count > Width) Count = Width - Pos;
     if (Count <= 0) return;
-    for (p += sizeof(TCell) * Pos; Count > 0; Count--) {
-        p++;
-        *p++ = (unsigned char) Attr;
+    B += Pos;
+    while (Count-- > 0) {
+        /* preserve character bytes, replace attr */
+        *B = (*B & 0x00FFFFFF) | ((unsigned int)Attr << 24);
+        B++;
     }
 }
 
 void MoveBgAttr(PCell B, int Pos, int Width, TAttr Attr, int Count) {
-    char *p = (char *) B;
-
-    if (Pos < 0) {
-        Count += Pos;
-        Pos = 0;
-    }
+    if (Pos < 0) { Count += Pos; Pos = 0; }
     if (Pos >= Width) return;
     if (Pos + Count > Width) Count = Width - Pos;
     if (Count <= 0) return;
-    for (p += sizeof(TCell) * Pos; Count > 0; Count--) {
-        p++;
-        *p = ((unsigned char)(*p & 0x0F)) | ((unsigned char) Attr);
-        p++;
+    B += Pos;
+    while (Count-- > 0) {
+        unsigned char a = TCELL_ATTR(*B);
+        a = (a & 0x0F) | (Attr & 0xF0);
+        *B = (*B & 0x00FFFFFF) | ((unsigned int)a << 24);
+        B++;
     }
 }
 

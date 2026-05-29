@@ -14,6 +14,7 @@
 #include "console.h"
 #include "c_mode.h"
 #include "e_regex.h"
+#include "utf8.h"
 
 #include <sys/types.h>
 
@@ -73,22 +74,85 @@ int Indent_SIMPLE(EBuffer *B, int Line, int PosCursor);
 #define X_MASK 0xFF
 #endif
 
+/*
+ * UTF-8 aware rendering macros.
+ *
+ * i   - byte index into line (always advances by 1 byte)
+ * p   - byte pointer (always advances by 1 byte)
+ * len - bytes remaining (always decrements by 1)
+ * C   - screen column (advances by wcwidth for lead byte, 0 for continuation)
+ *
+ * For a multi-byte UTF-8 character the lead byte occupies a TCell at
+ * column C; continuation bytes are stored in *subsequent* TCell slots
+ * (so ConPutBox can reassemble the sequence) but do NOT advance C.
+ * A double-width lead byte causes C to advance by 2 (placeholder cell
+ * is written automatically).
+ */
+
+/*
+ * UTF-8 aware rendering macros for 32-bit TCell.
+ *
+ * TCell layout (Unix): bits 7..0 = b0, 15..8 = b1, 23..16 = b2, 31..24 = attr
+ *
+ * i, p, len  — byte index / pointer / remaining bytes in the source line
+ * C           — screen column (advances by wcwidth, not by byte count)
+ * B           — TDrawBuffer (PCell, one TCell per screen column)
+ */
+
+/* Write current character starting at *p into TCell at column C.
+ * For multi-byte sequences we collect all bytes and pack into one TCell. */
 #define ColorChar() \
-    do {\
-    BPos = C - Pos; \
-    if (B) \
-    if (BPos >= 0 && BPos < Width) { \
-    BPtr = (PCLI *) (B + BPos); \
-    BPtr[0] = *p; \
-    BPtr[1] = HILIT_CLRD(); \
-    } \
-    if (StateMap) StateMap[i] = (hsState)(State & X_MASK); \
+    do { \
+        BPos = C - Pos; \
+        if (B && BPos >= 0 && BPos < Width) { \
+            unsigned char _c0 = (unsigned char)*p; \
+            TCell _cell; \
+            if (_c0 < 0x80 || utf8_is_cont(_c0)) { \
+                /* ASCII or lone continuation (shouldn't happen) */ \
+                _cell = TCELL_MAKE1(_c0, HILIT_CLRD()); \
+            } else { \
+                int _bc; \
+                utf8_decode(p, &_bc); \
+                unsigned char _b1 = (_bc >= 2) ? (unsigned char)p[1] : 0; \
+                unsigned char _b2 = (_bc >= 3) ? (unsigned char)p[2] : 0; \
+                _cell = TCELL_MAKE(_c0, _b1, _b2, HILIT_CLRD()); \
+            } \
+            B[BPos] = _cell; \
+        } \
+        if (StateMap) StateMap[i] = (hsState)(State & X_MASK); \
     } while (0)
 
-// MoveChar(B, C - Pos, Width, *p, Color, 1);
-// if (StateMap) StateMap[i] = State; }
+/* Advance past the current character.
+ * For multi-byte sequences: advance i/p/len by the full byte count,
+ * advance C by wcwidth. */
+#define NextChar() \
+    do { \
+        unsigned char _nc = (unsigned char)*p; \
+        if (_nc < 0x80) { \
+            /* ASCII */ \
+            i++; p++; len--; C++; \
+        } else if (utf8_is_cont(_nc)) { \
+            /* lone continuation byte — skip without advancing C */ \
+            i++; p++; len--; \
+        } else { \
+            /* lead byte of multi-byte sequence */ \
+            int _bc; \
+            unsigned long _cp = utf8_decode(p, &_bc); \
+            int _w = utf8_codepoint_width(_cp); \
+            if (_bc > len) _bc = len; \
+            i += _bc; p += _bc; len -= _bc; \
+            C += _w; \
+            /* double-width: write placeholder TCell */ \
+            if (_w == 2 && B) { \
+                int _ph = (C - 1) - Pos; \
+                if (_ph >= 0 && _ph < Width) \
+                    B[_ph] = TCELL_MAKE1(0, HILIT_CLRD()); \
+            } \
+        } \
+    } while (0)
 
-#define NextChar() do { i++; p++; len--; C++; } while (0)
+#define ColorNext() do { ColorChar(); NextChar(); } while (0)
+
 #define ColorNext() do { ColorChar(); NextChar(); } while (0)
 
 #define UntilMatchBrace(first, cmd) \
@@ -130,7 +194,6 @@ int Indent_SIMPLE(EBuffer *B, int Line, int PosCursor);
     } while (0)
 
 #define HILIT_VARS(ColorTable, Line) \
-    PCLI *BPtr; \
     int BPos; \
     ChColor *Colors = ColorTable; \
     ChColor Color = CLR_Normal; \
