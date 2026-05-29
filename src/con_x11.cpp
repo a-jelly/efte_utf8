@@ -435,17 +435,14 @@ static int InitXFonts(void) {
         snprintf(xft_pattern, sizeof(xft_pattern), "monospace");
     }
 
-    fprintf(stderr, "Used pattern: [%s]\n", xft_pattern);
-
     xftFont = XftFontOpenName(display, DefaultScreen(display), xft_pattern);
     if (!xftFont && xft_pattern[0]) {
         fprintf(stderr, "efte: cannot open font \"%s\", trying fallback\n",
                 xft_pattern);
         xftFont = XftFontOpenName(display, DefaultScreen(display), "monospace");
     }
-    if (!xftFont) {
+    if (!xftFont)
         xftFont = XftFontOpenName(display, DefaultScreen(display), "fixed");
-    }
     if (!xftFont) {
         fprintf(stderr, "efte: cannot open any Xft font\n");
         return -1;
@@ -816,20 +813,17 @@ void DrawCursor(int Show) {
         if (CursorBlink)
             Show &= (CursorLastTime % (CursorFlashInterval * 2)) > CursorFlashInterval;
 
-        // Берем оригинальный атрибут ячейки
-        unsigned char attr = TCELL_ATTR(tc);
-        
-        // ВОТ ОНО! Применяем маску к ЦЕЛОМУ атрибуту, чтобы инвертировать и фон, и текст
+        unsigned char attr = TCELL_ATTR(tc);      
+
         if (Show) {
             attr ^= insertState ? CursorInsertMask : CursorOverMask;
         }
 
-        // ТОЛЬКО ТЕПЕРЬ разбиваем атрибут на индексы цветов
+
         int fg_idx = attr & 0x0F;
         int bg_idx = (attr >> 4) & 0x0F;
 
 #ifdef USE_XFT
-        // Декодируем символ точно так же, как в ConPutBox
         unsigned char b0 = TCELL_B0(tc);
         FcChar32 ucs4 = b0;
         int slen = tcell_seqlen(tc);
@@ -841,7 +835,6 @@ void DrawCursor(int Show) {
                 ucs4 = ((b0 & 0x0F) << 12) | ((TCELL_B1(tc) & 0x3F) << 6) | (TCELL_B2(tc) & 0x3F);
             }
 
-            // Фикс псевдографики под курсором
             if (slen == 1 && ucs4 >= 1 && ucs4 <= 21) {
                 static const FcChar32 unicode_draw[] = {
                     0, 0x250C, 0x2510, 0x2514, 0x2518, 0x2500, 0x2502,
@@ -857,13 +850,12 @@ void DrawCursor(int Show) {
             ucs4 = ' ';
         }
 
-        // 1. Сначала рисуем ФОН. Поскольку bg_idx теперь инвертирован, 
-        // это нарисует сплошной цветной квадрат (красный или белый)
+        // 1. Draw background first
         XftDrawRect(xftDraw, &xftBg[bg_idx],
                     CursorX * FontCX, CursorY * FontCY,
                     FontCX, FontCY);
 
-        // 2. Затем рисуем СИМВОЛ поверх квадрата
+        // 2. Draw symbol now
         if (ucs4 != ' ') {
             XftCharSpec spec;
             spec.ucs4 = ucs4;
@@ -872,7 +864,6 @@ void DrawCursor(int Show) {
             XftDrawCharSpec(xftDraw, &xftFg[fg_idx], xftFont, &spec, 1);
         }
 #else
-        // Старый fallback для X11 Core Fonts
         char seq[5];
         int tlen = tcell_seqlen(tc);
         seq[0] = (char)TCELL_B0(tc);
@@ -944,26 +935,26 @@ int ConPutBox(int X, int Y, int W, int H, PCell Cell) {
             int col = 0;
 
             while (col < W) {
-                // Ищем символы с одинаковым цветом текста
+                // Find characters with the same text color
                 unsigned char attr = TCELL_ATTR(*src);
                 int fg_idx = attr & 0x0F;
 
-                XftCharSpec specs[ConMaxCols]; // Буфер для одной непрерывной строки
+                XftCharSpec specs[ConMaxCols]; // Buffer for one continuous line
                 int spec_cnt = 0;
                 int run = 0;
 
-                // Собираем все соседние символы того же цвета
+                // Collect all adjacent characters of the same color
                 while (col + run < W) {
                     TCell tc = src[run];
                     if ((TCELL_ATTR(tc) & 0x0F) != fg_idx) break;
 
                     unsigned char b0 = TCELL_B0(tc);
-                    // Пропускаем обычные пробелы и пустые ячейки (фон мы уже залили)
+                    // Skip regular spaces and empty cells (background is already filled)
                     if (b0 != 0x00 && b0 != ' ') { 
                         int slen = tcell_seqlen(tc);
                         FcChar32 ucs4 = b0;
                         
-                        // Декодируем ваш внутренний 3-байтовый UTF-8 в чистый Unicode (UCS-4)
+                        // Decode internal 3-byte UTF-8 into pure Unicode (UCS-4)
                         if (slen == 2) {
                             ucs4 = ((b0 & 0x1F) << 6) | (TCELL_B1(tc) & 0x3F);
                         } else if (slen == 3) {
@@ -971,10 +962,10 @@ int ConPutBox(int X, int Y, int W, int H, PCell Cell) {
                         }
 
                         // =======================================================
-                        // ФИКС ПСЕВДОГРАФИКИ И КВАДРАТИКОВ В КОНЦЕ СТРОКИ
+                        // FIX FOR PSEUDO-GRAPHICS AND RECTANGLES AT THE END OF THE LINE
                         // =======================================================
                         if (slen == 1 && ucs4 >= 1 && ucs4 <= 21) {
-                            // Превращаем наши маркеры (из ConGetDrawChar) в идеальную Unicode-графику
+                            // Convert our markers (from ConGetDrawChar) into perfect Unicode graphics
                             static const FcChar32 unicode_draw[] = {
                                 0,
                                 0x250C, // 1:  DCH_C1 ┌
@@ -985,13 +976,14 @@ int ConPutBox(int X, int Y, int W, int H, PCell Cell) {
                                 0x2502, // 6:  DCH_V  │
                                 0x251C, // 7:  DCH_M1 ├
                                 0x2524, // 8:  DCH_M2 ┤
-                                0x252C, // 9:  DCH_M3 ┬
+                                // 0x252C, // 9:  DCH_M3 ┬
+                                0x2192,   // 9:  DCH_M3 ┬
                                 0x2534, // 10: DCH_M4 ┴
                                 0x253C, // 11: DCH_X  ┼
                                 0x25B6, // 12: DCH_RPTR ▶
-                                0x00B6, // 13: DCH_EOL ¶ (символ конца строки)
-                                0x2666, // 14: DCH_EOF ♦ (конец файла)
-                                0x2191, // 15: DCH_END ↑ 
+                                0x00B7, // 13: DCH_EOL ¶ (end of line character)
+                                0x2666, // 14: DCH_EOF ♦ (end of file)
+                                0x2500, // 15: DCH_END ─ (line - end of buffer)
                                 0x25B2, // 16: DCH_AUP ▲
                                 0x25BC, // 17: DCH_ADOWN ▼
                                 0x2592, // 18: DCH_HFORE ▒
@@ -1001,16 +993,16 @@ int ConPutBox(int X, int Y, int W, int H, PCell Cell) {
                             };
                             ucs4 = unicode_draw[ucs4];
                         } else if (ucs4 < 32) {
-                            // Любой другой непечатный мусор (например, реальный \0 или \r) 
-                            // превращаем в пробел, чтобы Xft не рисовал квадраты (.notdef)
+                            // Any other non-printable garbage (for example, real \0 or \r) 
+                            // is converted into a space so that Xft doesn't draw squares (.notdef)
                             ucs4 = ' ';
                         }
                         // =======================================================
 
-                        // Если символ не стал пробелом - рисуем его (фон для пробелов уже есть)
+                        // If the character is not a space - draw it (background for spaces is already drawn)
                         if (ucs4 != ' ') {
                             specs[spec_cnt].ucs4 = ucs4;
-                            // ЖЕСТКАЯ ПРИВЯЗКА К СЕТКЕ: Вычисляем пиксель
+                            // STRICT GRID SNAPPING: Calculate the pixel
                             specs[spec_cnt].x = (X + col + run) * FontCX;
                             specs[spec_cnt].y = xftAscent + row * FontCY;
                             spec_cnt++;
@@ -1019,7 +1011,7 @@ int ConPutBox(int X, int Y, int W, int H, PCell Cell) {
                     run++;
                 }
 
-                // Отрисовываем весь собранный кусок текста за ОДИН вызов X11 сервера
+                // Draw the entire collected piece of text in a SINGLE X11 server call
                 if (spec_cnt > 0) {
                     XftDrawCharSpec(xftDraw, &xftFg[fg_idx], xftFont, specs, spec_cnt);
                 }
@@ -1404,7 +1396,7 @@ static struct {
 void ConvertKeyToEvent(KeySym key, KeySym key1, char *keyname, char *keyname1, int etype, int state, TEvent *Event) {
     unsigned int myState = 0;
     
-    // Изначально событие пустое, никакого мусора!
+    // The event is empty initially, no garbage!
     Event->What = evNone;
     Event->Key.Code = 0;
 
@@ -1413,14 +1405,14 @@ void ConvertKeyToEvent(KeySym key, KeySym key1, char *keyname, char *keyname1, i
     else if (etype == KeyRelease) final_event = evKeyUp;
     else return;
 
-    // 1. ИГНОРИРУЕМ ЧИСТЫЕ МОДИФИКАТОРЫ
+    // 1. IGNORE PURE MODIFIERS
     if (key == XK_Shift_L || key == XK_Shift_R ||
         key == XK_Control_L || key == XK_Control_R ||
         key == XK_Alt_L || key == XK_Alt_R ||
         key == XK_Meta_L || key == XK_Meta_R ||
         key == XK_Caps_Lock || key == XK_Num_Lock ||
         key == XK_ISO_Level3_Shift) {
-        return; // Выходим. Event->What ОСТАЕТСЯ evNone! Никаких пробелов!
+        return; // Exit. Event->What REMAINS evNone! No spaces!
     }
 
     if (state & ShiftMask) myState |= kfShift;
@@ -1431,12 +1423,12 @@ void ConvertKeyToEvent(KeySym key, KeySym key1, char *keyname, char *keyname1, i
 
     if (key < 256 || (key1 < 256 && (myState == kfAlt || myState == (kfAlt | kfShift)))) {
         if (myState & kfAlt)
-            key = key1; // Тут всегда чистая латиница благодаря нашему XkbKeycodeToKeysym
+            key = key1; // Always pure Latin here thanks to our XkbKeycodeToKeysym
             
         if (myState == kfShift)
             myState = 0;
             
-        // 2. БЕЗОПАСНЫЙ ПЕРЕВОД В ВЕРХНИЙ РЕГИСТР ДЛЯ ХОТКЕЕВ
+        // 2. SAFE CONVERSION TO UPPERCASE FOR HOTKEYS
         if (myState & (kfAlt | kfCtrl)) {
             if (key >= 'a' && key <= 'z') {
                 key &= ~0x20; 
@@ -1446,7 +1438,7 @@ void ConvertKeyToEvent(KeySym key, KeySym key1, char *keyname, char *keyname1, i
         if ((myState & kfCtrl) && key < 32)
             key += 64;
             
-        // ТОЛЬКО ТУТ мы подтверждаем, что событие реально произошло
+        // ONLY HERE we confirm that the event actually occurred
         Event->What = final_event;
         Event->Key.Code = key | myState;
         return;
@@ -1478,7 +1470,7 @@ void ConvertKeyToEvent(KeySym key, KeySym key1, char *keyname, char *keyname1, i
     }
 
 
-    // Системные клавиши (Стрелки, F1-F12 и т.д.)
+    // System keys (Arrows, F1-F12, etc.)
     for (unsigned i = 0; i < (sizeof(key_table) / sizeof(key_table[0])); i++) {
         if ((long) key1 == key_table[i].keysym) {
             long k = key_table[i].keycode;
@@ -1490,7 +1482,7 @@ void ConvertKeyToEvent(KeySym key, KeySym key1, char *keyname, char *keyname1, i
         }
     }
 
-    // Если дошли до конца и ничего не подошло - глушим событие
+    // If we reached the end and nothing matched - suppress the event
     Event->What = evNone;
 }
 
@@ -1512,30 +1504,30 @@ void ConvertKeyToEvent(KeySym key, KeySym key1, char *keyname, char *keyname1, i
     if (state & Mod3Mask) myState |= kfAlt;
     if (state & Mod4Mask) myState |= kfAlt;
 
-    // 1. Сначала проверяем системные клавиши (стрелки, F1-F12, Tab, Enter и т.д.)
-    // Они одинаковы во всех раскладках, поэтому проверяем key1
+    // 1. First, check system keys (arrows, F1-F12, Tab, Enter, etc.)
+    // They are identical in all layouts, so we check key1
     for (unsigned i = 0; i < (sizeof(key_table) / sizeof(key_table[0])); i++) {
         if ((long) key1 == key_table[i].keysym || (long) key == key_table[i].keysym) {
             long k = key_table[i].keycode;
             if (k < 256 && myState == kfShift) 
-                myState = 0; // Shift уже учтен в самом символе
+                myState = 0; // Shift is already accounted for in the character itself
             Event->Key.Code = k | myState;
             return;
         }
     }
 
-    // 2. Обработка базовой латиницы (и наших хоткеев)
+    // 2. Processing basic Latin (and our hotkeys)
     if (key >= 0x20 && key <= 0x7E) {
         if (myState == kfShift) 
-            myState = 0; // Shift для букв обрабатывается самим X11 (дает 'A' вместо 'a')
+            myState = 0; // Shift for letters is processed by X11 itself (gives 'A' instead of 'a')
 
-        // Для хоткеев Ctrl/Alt ядро FTE требует заглавные буквы
+        // For Ctrl/Alt hotkeys, the FTE core requires uppercase letters
         if (myState & (kfAlt | kfCtrl)) {
             if (key >= 'a' && key <= 'z') 
-                key &= ~0x20; // Переводим в верхний регистр чисто и безопасно
+                key &= ~0x20; // Convert to uppercase cleanly and safely
         }
 
-        // Классический терминальный хак для Ctrl (Ctrl+A = 1, возвращаем в ASCII 'A')
+        // Classic terminal hack for Ctrl (Ctrl+A = 1, return to ASCII 'A')
         if ((myState & kfCtrl) && key < 32)
             key += 64;
 
@@ -1543,16 +1535,16 @@ void ConvertKeyToEvent(KeySym key, KeySym key1, char *keyname, char *keyname1, i
         return;
     }
 
-    // 3. Чистый ввод Unicode (национальные символы)
-    // Если зажат Alt или Ctrl, мы сюда не должны попадать (они перехватываются латиницей в ProcessXEvents)
+    // 3. Pure Unicode input (national characters)
+    // If Alt or Ctrl is held down, we shouldn't get here (they are intercepted as Latin in ProcessXEvents)
     if (myState == 0 || myState == kfShift) {
         if ((key & 0xFF000000) == 0x01000000) {
             Event->Key.Code = key & 0x00FFFFFF;
             return;
         }
-        // Оставляем фолбэк для кириллицы (если X11 старый)
+        // Leave a fallback for Cyrillic (if X11 is old)
         if (key >= 0x0680 && key <= 0x06FF) {
-            // Тут старый маппинг кириллицы, если он тебе нужен, но обычно XIM уже возвращает 0x01000000
+            // Here is the old Cyrillic mapping if you need it, but usually XIM already returns 0x01000000
         }
         Event->Key.Code = key | myState;
         return;
@@ -1802,8 +1794,8 @@ void ProcessXEvents(TEvent *Event) {
         XLookupString(&keyEvent1, keyName1, sizeof(keyName1), &key1, 0);
         if (state & (ControlMask | Mod1Mask | Mod3Mask | Mod4Mask)) {
             KeySym raw_sym = 0;
-            // Ищем латинский символ (ASCII 0x20-0x7E) на физической клавише 
-            // во всех доступных группах (раскладках) X11
+            // Look for a Latin character (ASCII 0x20-0x7E) on the physical key 
+            // in all available X11 groups (layouts)
             for (int grp = 0; grp < 4; grp++) {
                 KeySym sym = XkbKeycodeToKeysym(display, keyEvent->keycode, grp, 0);
                 if (sym >= 0x20 && sym <= 0x7E) {
@@ -1816,7 +1808,6 @@ void ProcessXEvents(TEvent *Event) {
                 key1 = raw_sym;
             }
         }
-        printf("DEBUG: key=0x%04lX, state=0x%X, keyName='%s'\n", key, state, keyName);
         ConvertKeyToEvent(key, key1, keyName, keyName1, event.type, state, Event);
         break;
     case MotionNotify:
@@ -2618,23 +2609,10 @@ int GUI::RunProgram(int mode, char *Command) {
 
 
 char ConGetDrawChar(int idx) {
-    // Вместо старой абракадабры мы отдаем уникальные контрольные коды (от 1 до 21).
-    // Мы перехватим их в ConPutBox и превратим в красивые Unicode-рамки.
+    // Instead of the old gibberish, we provide unique control codes (from 1 to 21).
+    // We will intercept them in ConPutBox and turn them into beautiful Unicode borders.
     if (idx >= 0 && idx <= 20) {
         return (char)(idx + 1);
     }
     return ' ';
 }
-
-/*
-char ConGetDrawChar(int idx) {
-    static const char *tab = NULL;
-
-    if (!tab) {
-        tab = GetGUICharacters("X11", "\x0D\x0C\x0E\x0B\x12\x19____+>\x1F\x01\x12 ");
-    }
-    assert(idx >= 0 && idx < (int) strlen(tab));
-
-    return tab[idx];
-}
-*/
