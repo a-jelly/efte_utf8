@@ -122,7 +122,7 @@ object GLOBAL {
 #    WindowFont = "7x13";
 #    WindowFont = "8x13";
 #    WindowFont = "9x15";
-    WindowFont = "9x15";
+    WindowFont = "DejaVu Sans Mono:size=12";
 %if(UI_KB)
     WindowFont = "*-fixed-bold-*-15*,*-fixed-bold-*-16*";
 %endif
