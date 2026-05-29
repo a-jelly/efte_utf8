@@ -63,7 +63,7 @@ SET( BASE_FTE_SOURCES
   o_buffer.cpp o_buflist.cpp o_cvs.cpp o_cvsbase.cpp o_cvsdiff.cpp o_directory.cpp
   o_list.cpp o_messages.cpp o_model.cpp o_modemap.cpp o_routine.cpp o_svn.cpp
   o_svnbase.cpp o_svndiff.cpp s_direct.cpp s_files.cpp s_string.cpp
-  s_util.cpp view.cpp ${CMAKE_CURRENT_BINARY_DIR}/defcfg.h )
+  s_util.cpp view.cpp utf8.cpp ${CMAKE_CURRENT_BINARY_DIR}/defcfg.h )
 SET( UNIX_SOURCES e_unix.cpp memicmp.cpp )
 SET( XFTE_SOURCES clip_x11.cpp con_i18n.cpp con_x11.cpp g_nodlg.cpp g_text.cpp
   menu_text.cpp )
@@ -190,7 +190,27 @@ IF( UNIX )
       IF( NOT XPM_LIBRARY )
         MESSAGE( SEND_ERROR "Could not find Xpm library which is required for X11 version" )
       ENDIF( NOT XPM_LIBRARY )
-      TARGET_LINK_LIBRARIES( efte eftebase ${X11_LIBRARIES} ${XPM_LIBRARY} ${SYSTEM_LIBS} )
+
+      FIND_LIBRARY( XFT_LIBRARY Xft )
+      FIND_PATH( XFT_INCLUDE_DIR X11/Xft/Xft.h )
+      IF( XFT_LIBRARY AND XFT_INCLUDE_DIR )
+        MESSAGE( STATUS "Xft found - enabling Unicode font rendering" )
+        ADD_DEFINITIONS( -DUSE_XFT )
+        INCLUDE_DIRECTORIES( ${XFT_INCLUDE_DIR} )
+        # Xft needs freetype headers - get them via pkg-config
+        FIND_PACKAGE(PkgConfig QUIET)
+        IF( PKG_CONFIG_FOUND )
+          PKG_CHECK_MODULES( XFT_PC xft )
+          IF( XFT_PC_FOUND )
+            INCLUDE_DIRECTORIES( ${XFT_PC_INCLUDE_DIRS} )
+          ENDIF( XFT_PC_FOUND )
+        ENDIF( PKG_CONFIG_FOUND )
+        TARGET_LINK_LIBRARIES( efte eftebase ${X11_LIBRARIES} ${XPM_LIBRARY} ${XFT_LIBRARY} ${SYSTEM_LIBS} )
+      ELSE( XFT_LIBRARY AND XFT_INCLUDE_DIR )
+        MESSAGE( STATUS "Xft not found - falling back to XmbDrawImageString" )
+        TARGET_LINK_LIBRARIES( efte eftebase ${X11_LIBRARIES} ${XPM_LIBRARY} ${SYSTEM_LIBS} )
+      ENDIF( XFT_LIBRARY AND XFT_INCLUDE_DIR )
+
       INSTALL( TARGETS efte RUNTIME DESTINATION bin )
     ELSE( X11_LIBRARIES )
       MESSAGE( STATUS "X11 not found, X11 enabled efte will not be built" )
@@ -212,6 +232,12 @@ IF( UNIX )
     ENDIF( USE_GPM )
 
     INCLUDE(FindCurses)
+    # Prefer ncursesw (wide character support) for proper UTF-8 input via get_wch()
+    FIND_LIBRARY( CURSESW_LIBRARY ncursesw )
+    IF( CURSESW_LIBRARY )
+      SET( CURSES_LIBRARY ${CURSESW_LIBRARY} )
+      MESSAGE( STATUS "Using ncursesw for wide character support" )
+    ENDIF( CURSESW_LIBRARY )
     IF( CURSES_LIBRARY )
       MESSAGE( STATUS "Curses found on system, nefte will be built" )
 
