@@ -39,6 +39,7 @@
 #include <X11/keysym.h>
 #include <X11/XF86keysym.h>
 #include <X11/Xos.h>
+#include <X11/XKBlib.h>
 #ifdef USE_XTINIT
 #include <X11/Intrinsic.h>
 #endif
@@ -49,6 +50,7 @@
 #include "c_config.h"
 #include "console.h"
 #include "gui.h"
+#include "utf8.h"
 
 #include "con_i18n.h"
 #include "s_files.h"
@@ -116,7 +118,7 @@ static unsigned long CursorLastTime;
 
 // Cursor flashing interval, in msecs
 static unsigned CursorFlashInterval = 300;
-static unsigned char *ScreenBuffer = NULL;
+static TCell *ScreenBuffer = NULL;
 static int Refresh = 0;
 
 // Configurable X11 parameters
@@ -142,14 +144,24 @@ static XSizeHints sizeHints;
 
 // program now contains both modes if available
 // some older Xservers don't like XmbDraw...
+#ifdef USE_XFT
+#include <X11/Xft/Xft.h>
+static XftFont  *xftFont   = NULL;
+static XftDraw  *xftDraw   = NULL;
+static XftColor  xftFg[16];   /* foreground colours */
+static XftColor  xftBg[16];   /* background colours */
+static int       xftAscent = 0;
+#else
 static XFontStruct *fontStruct;
 #ifdef USE_XMB
-static int useXMB = 1; // default is yes
+static int useXMB = 1;
 static XFontSet fontSet;
 static int FontCYD;
 #else
 static int useXMB = 0;
 #endif
+#endif /* USE_XFT */
+
 static int useI18n = 1;
 static int FontCX, FontCY;
 static XColor Colors[16];
@@ -208,15 +220,12 @@ static int GetFTEClip(Atom clip) {
 
 
 static int AllocBuffer() {
-    unsigned char *p;
     unsigned int i;
 
-    ScreenBuffer = (unsigned char *)malloc(2 * ScreenCols * ScreenRows);
+    ScreenBuffer = (TCell *)malloc(sizeof(TCell) * ScreenCols * ScreenRows);
     if (ScreenBuffer == NULL) return -1;
-    for (i = 0, p = ScreenBuffer; i < ScreenCols * ScreenRows; i++) {
-        *p++ = 32;
-        *p++ = 0x07;
-    }
+    for (i = 0; i < ScreenCols * ScreenRows; i++)
+        ScreenBuffer[i] = TCELL_MAKE1(' ', 0x07);
     return 0;
 }
 
@@ -328,10 +337,12 @@ static int InitXGCs() {
     unsigned long mask = GCForeground | GCBackground;
     XGCValues gcv;
 
+#ifndef USE_XFT
     if (!useXMB) {
         gcv.font = fontStruct->fid;
         mask |= GCFont;
     }
+#endif
 
     for (i = 0; i < 256; i++) {
         gcv.foreground = Colors[i % 16].pixel;
@@ -339,9 +350,26 @@ static int InitXGCs() {
         GCs[i] = XCreateGC(display, win, mask, &gcv);
     }
 
+#ifdef USE_XFT
+    /* Initialise Xft colours from the already-allocated X colours */
+    Visual  *vis = DefaultVisual(display, DefaultScreen(display));
+    Colormap cmap = colormap;
+    for (i = 0; i < 16; i++) {
+        XRenderColor rc;
+        rc.red   = Colors[i].red;
+        rc.green = Colors[i].green;
+        rc.blue  = Colors[i].blue;
+        rc.alpha = 0xFFFF;
+        XftColorAllocValue(display, vis, cmap, &rc, &xftFg[i]);
+        XftColorAllocValue(display, vis, cmap, &rc, &xftBg[i]);
+    }
+    xftDraw = XftDrawCreate(display, win, vis, cmap);
+#endif
+
     return 0;
 }
 
+#ifndef USE_XFT
 #ifdef USE_XMB
 static void try_fontset_load(const char *fs) {
     char *def = NULL;
@@ -366,18 +394,86 @@ static void try_fontset_load(const char *fs) {
     }
 }
 #endif
+#endif /* !USE_XFT */
 
 static int InitXFonts(void) {
     char *fs = getenv("VIOFONT");
-    if (fs == NULL && WindowFont[0] != 0)
+    if (fs == NULL && WindowFont[0] != 0) {
         fs = WindowFont;
+    }
+
+#ifdef USE_XFT
+    /* Build an Xft/fontconfig pattern.
+     *
+     * Priority:
+     *   1. VIOFONT env var (already in fs)
+     *   2. WindowFont from .fte config
+     *   3. FontSize from .fte config applied to a system monospace font
+     *   4. Pure system default monospace
+     *
+     * WindowFont can be a full fontconfig pattern ("JetBrains Mono:size=13")
+     * or just a family name ("Iosevka").  If it contains no "size=" and
+     * FontSize > 0 we append the size automatically.
+     */
+    char xft_pattern[128] = "";
+
+    if (fs && *fs) {
+        /* VIOFONT or -font argument: use verbatim */
+        snprintf(xft_pattern, sizeof(xft_pattern), "%s", fs);
+    } else if (WindowFont[0]) {
+        if (FontSize > 0 && !strstr(WindowFont, "size="))
+            snprintf(xft_pattern, sizeof(xft_pattern),
+                     "%s:size=%d", WindowFont, FontSize);
+        else
+            snprintf(xft_pattern, sizeof(xft_pattern), "%s", WindowFont);
+    } else if (FontSize > 0) {
+        snprintf(xft_pattern, sizeof(xft_pattern),
+                 "monospace:size=%d", FontSize);
+    } else {
+        /* No font configured at all — let fontconfig pick the best
+         * monospace font for the current locale and DPI. */
+        snprintf(xft_pattern, sizeof(xft_pattern), "monospace");
+    }
+
+    fprintf(stderr, "Used pattern: [%s]\n", xft_pattern);
+
+    xftFont = XftFontOpenName(display, DefaultScreen(display), xft_pattern);
+    if (!xftFont && xft_pattern[0]) {
+        fprintf(stderr, "efte: cannot open font \"%s\", trying fallback\n",
+                xft_pattern);
+        xftFont = XftFontOpenName(display, DefaultScreen(display), "monospace");
+    }
+    if (!xftFont) {
+        xftFont = XftFontOpenName(display, DefaultScreen(display), "fixed");
+    }
+    if (!xftFont) {
+        fprintf(stderr, "efte: cannot open any Xft font\n");
+        return -1;
+    }
+
+    xftAscent = xftFont->ascent;
+    FontCY = xftFont->height;
+
+    /* Measure the actual advance width of a typical character.
+     * max_advance_width is often padded; using '0' gives the true
+     * cell width for monospace fonts. */
+    {
+        XGlyphInfo extents;
+        XftTextExtentsUtf8(display, xftFont, (const FcChar8 *)"0", 1, &extents);
+        FontCX = extents.xOff;
+        /* fallback if something went wrong */
+        if (FontCX <= 0)
+            FontCX = xftFont->max_advance_width;
+    }
+    return 0;
+
+#else /* !USE_XFT */
 
     if (!useXMB) {
         fontStruct = NULL;
 
         if (fs != NULL) {
             char *s = 0;
-
             s = strchr(fs, ',');
             if (s != NULL)
                 *s = 0;
@@ -406,12 +502,11 @@ static int InitXFonts(void) {
 
         FontCX = xE->max_logical_extent.width;
         FontCY = xE->max_logical_extent.height;
-        // handle descending (comes in negative form)
         FontCYD = -(xE->max_logical_extent.y);
-        // printf("Font X:%d\tY:%d\tD:%d\n", FontCX, FontCY, FontCYD);
     }
 #endif
     return 0;
+#endif /* USE_XFT */
 }
 
 static int SetupXWindow(int argc, char **argv) {
@@ -711,117 +806,276 @@ int ConGetTitle(char *Title, int MaxLen, char *STitle, int SMaxLen) {
 }
 
 #define InRange(x,a,y) (((x) <= (a)) && ((a) < (y)))
-#define CursorXYPos(x,y) (ScreenBuffer + ((x) + ((y) * ScreenCols)) * 2)
+#define CursorXYPos(x,y) (ScreenBuffer + (x) + ((y) * ScreenCols))
 
 void DrawCursor(int Show) {
     if (CursorVisible) {
-        unsigned char *p = CursorXYPos(CursorX, CursorY);
+        TCell *p = CursorXYPos(CursorX, CursorY);
+        TCell tc = *p;
 
-        // Check if cursor is on or off due to flashing
         if (CursorBlink)
             Show &= (CursorLastTime % (CursorFlashInterval * 2)) > CursorFlashInterval;
-        int attr = p[1];
-        if (Show)
+
+        // Берем оригинальный атрибут ячейки
+        unsigned char attr = TCELL_ATTR(tc);
+        
+        // ВОТ ОНО! Применяем маску к ЦЕЛОМУ атрибуту, чтобы инвертировать и фон, и текст
+        if (Show) {
             attr ^= insertState ? CursorInsertMask : CursorOverMask;
+        }
+
+        // ТОЛЬКО ТЕПЕРЬ разбиваем атрибут на индексы цветов
+        int fg_idx = attr & 0x0F;
+        int bg_idx = (attr >> 4) & 0x0F;
+
+#ifdef USE_XFT
+        // Декодируем символ точно так же, как в ConPutBox
+        unsigned char b0 = TCELL_B0(tc);
+        FcChar32 ucs4 = b0;
+        int slen = tcell_seqlen(tc);
+
+        if (b0 != 0x00) {
+            if (slen == 2) {
+                ucs4 = ((b0 & 0x1F) << 6) | (TCELL_B1(tc) & 0x3F);
+            } else if (slen == 3) {
+                ucs4 = ((b0 & 0x0F) << 12) | ((TCELL_B1(tc) & 0x3F) << 6) | (TCELL_B2(tc) & 0x3F);
+            }
+
+            // Фикс псевдографики под курсором
+            if (slen == 1 && ucs4 >= 1 && ucs4 <= 21) {
+                static const FcChar32 unicode_draw[] = {
+                    0, 0x250C, 0x2510, 0x2514, 0x2518, 0x2500, 0x2502,
+                    0x251C, 0x2524, 0x252C, 0x2534, 0x253C, 0x25B6,
+                    0x00B6, 0x2666, 0x2191, 0x25B2, 0x25BC, 0x2592,
+                    0x2591, 0x25C0, 0x25B6
+                };
+                ucs4 = unicode_draw[ucs4];
+            } else if (ucs4 < 32) {
+                ucs4 = ' ';
+            }
+        } else {
+            ucs4 = ' ';
+        }
+
+        // 1. Сначала рисуем ФОН. Поскольку bg_idx теперь инвертирован, 
+        // это нарисует сплошной цветной квадрат (красный или белый)
+        XftDrawRect(xftDraw, &xftBg[bg_idx],
+                    CursorX * FontCX, CursorY * FontCY,
+                    FontCX, FontCY);
+
+        // 2. Затем рисуем СИМВОЛ поверх квадрата
+        if (ucs4 != ' ') {
+            XftCharSpec spec;
+            spec.ucs4 = ucs4;
+            spec.x = CursorX * FontCX;
+            spec.y = xftAscent + CursorY * FontCY;
+            XftDrawCharSpec(xftDraw, &xftFg[fg_idx], xftFont, &spec, 1);
+        }
+#else
+        // Старый fallback для X11 Core Fonts
+        char seq[5];
+        int tlen = tcell_seqlen(tc);
+        seq[0] = (char)TCELL_B0(tc);
+        seq[1] = (char)TCELL_B1(tc);
+        seq[2] = (char)TCELL_B2(tc);
+        seq[tlen] = '\0';
+        if (seq[0] == 0) { seq[0] = ' '; tlen = 1; }
+
         if (!useXMB)
             XDrawImageString(display, win, GCs[attr],
                              CursorX * FontCX,
                              fontStruct->max_bounds.ascent + CursorY * FontCY,
-                             (char *)p, 1);
+                             seq, tlen);
 #ifdef USE_XMB
         else
             XmbDrawImageString(display, win, fontSet, GCs[attr],
                                CursorX * FontCX, FontCYD + CursorY * FontCY,
-                               (char *)p, 1);
+                               seq, tlen);
 #endif
-#if 0
-        if (Show) {
-            int cs = (CursorStart * FontCY + FontCY / 2) / 100;
-            int ce = (CursorEnd   * FontCY + FontCY / 2) / 100;
-            XFillRectangle(display, win, GCs[p[1]],
-                           CursorX * FontCX, CursorY * FontCY + cs,
-                           FontCX, ce - cs);
-        }
-#endif
+#endif /* USE_XFT */
     }
 }
 
+
 int ConPutBox(int X, int Y, int W, int H, PCell Cell) {
-    unsigned int i;
-    unsigned char temp[256], attr;
-    unsigned char *p, *ps, *c, *ops;
-    unsigned int len, x, l, ox, olen, skip;
-
-
-    if (X >= (int) ScreenCols || Y >= (int) ScreenRows ||
-            X + W > (int) ScreenCols || Y + H > (int) ScreenRows) {
-        //fprintf(stderr, "%d %d  %d %d %d %d\n", ScreenCols, ScreenRows, X, Y, W, H);
+    if (X >= (int)ScreenCols || Y >= (int)ScreenRows ||
+        X + W > (int)ScreenCols || Y + H > (int)ScreenRows)
         return -1;
-    }
-    //XClearArea(display, win, X, Y, W * FontCX, H * FontCY, False);
 
-    //fprintf(stderr, "%d %d  %d %d %d %d\n", ScreenCols, ScreenRows, X, Y, W, H);
-    for (i = 0; i < (unsigned int)H; i++) {
-        len = W;
-        p = CursorXYPos(X, Y + i);
-        ps = (unsigned char *) Cell;
-        x = X;
-        while (len > 0) {
-            if (!Refresh) {
-                c = CursorXYPos(x, Y + i);
-                skip = 0;
-                ops = ps;
-                ox = x;
-                olen = len;
-                while ((len > 0) && c[0] == ps[0] && c[1] == ps[1]) {
-                    ps += 2;
-                    c += 2;
-                    x++;
-                    len--;
-                    skip++;
-                }
-                if (len <= 0) break;
-                if (skip <= 4) {
-                    ps = ops;
-                    x = ox;
-                    len = olen;
-                }
-            }
-            p = ps;
-            l = 1;
-            temp[0] = *ps++;
-            attr = *ps++;
-            while ((l < len) && ((unsigned char)(ps[1]) == attr)) {
-                temp[l++] = *ps++;
-                ps++;
-            }
-            if (!useXMB)
-                XDrawImageString(display, win, GCs[((unsigned)attr) & 0xFF],
-                                 x * FontCX, fontStruct->max_bounds.ascent +
-                                 (Y + i) * FontCY,
-                                 (char *)temp, l);
-#ifdef USE_XMB
-            else
-                XmbDrawImageString(display, win, fontSet,
-                                   GCs[((unsigned)attr) & 0xFF],
-                                   x * FontCX, FontCYD + (Y + i) * FontCY,
-                                   (char *)temp, l);
-#endif
-            //temp[l] = 0; printf("%s\n", temp);
-            len -= l;
-            x += l;
+    for (int i = 0; i < H; i++) {
+        int row = Y + i;
+        TCell *scr = CursorXYPos(X, row);
+
+        /* skip entire unchanged rows */
+        if (!Refresh && memcmp(scr, Cell, W * sizeof(TCell)) == 0) {
+            Cell += W;
+            continue;
         }
-        /* if (x < ScreenCols - 1) {
-             printf("XX %d   %d   %d\n", X, x, W);
-             XFillRectangle(display, win, GCs[15 * 16 + 7],
-              x * FontCX, (Y + i) * FontCY,
-              (ScreenCols - x - 1) * FontCX, FontCY);
-         }
-        */
-        p = CursorXYPos(X, Y + i);
-        memmove(p, Cell, W * 2);
-        if (i + Y == CursorY)
+
+        /* update screen buffer */
+        memcpy(scr, Cell, W * sizeof(TCell));
+
+#ifdef USE_XFT
+        /* Draw cell by cell so each glyph lands exactly at col*FontCX.
+         * Collect runs of same-attribute cells for background fill,
+         * then draw each glyph individually at its precise pixel position. */
+
+        /* First pass: fill backgrounds by attribute runs */
+        {
+            PCell p = Cell;
+            int col = 0;
+            while (col < W) {
+                unsigned char attr = TCELL_ATTR(*p);
+                int run = 0;
+                while (col + run < W && TCELL_ATTR(p[run]) == attr)
+                    run++;
+                int bg_idx = (attr >> 4) & 0x0F;
+                XftDrawRect(xftDraw, &xftBg[bg_idx],
+                            (X + col) * FontCX, row * FontCY,
+                            run * FontCX, FontCY);
+                p   += run;
+                col += run;
+            }
+        }
+
+        /* Second pass: draw glyphs using strict grid positioning (XftCharSpec) */
+        {
+            PCell src = Cell;
+            int col = 0;
+
+            while (col < W) {
+                // Ищем символы с одинаковым цветом текста
+                unsigned char attr = TCELL_ATTR(*src);
+                int fg_idx = attr & 0x0F;
+
+                XftCharSpec specs[ConMaxCols]; // Буфер для одной непрерывной строки
+                int spec_cnt = 0;
+                int run = 0;
+
+                // Собираем все соседние символы того же цвета
+                while (col + run < W) {
+                    TCell tc = src[run];
+                    if ((TCELL_ATTR(tc) & 0x0F) != fg_idx) break;
+
+                    unsigned char b0 = TCELL_B0(tc);
+                    // Пропускаем обычные пробелы и пустые ячейки (фон мы уже залили)
+                    if (b0 != 0x00 && b0 != ' ') { 
+                        int slen = tcell_seqlen(tc);
+                        FcChar32 ucs4 = b0;
+                        
+                        // Декодируем ваш внутренний 3-байтовый UTF-8 в чистый Unicode (UCS-4)
+                        if (slen == 2) {
+                            ucs4 = ((b0 & 0x1F) << 6) | (TCELL_B1(tc) & 0x3F);
+                        } else if (slen == 3) {
+                            ucs4 = ((b0 & 0x0F) << 12) | ((TCELL_B1(tc) & 0x3F) << 6) | (TCELL_B2(tc) & 0x3F);
+                        }
+
+                        // =======================================================
+                        // ФИКС ПСЕВДОГРАФИКИ И КВАДРАТИКОВ В КОНЦЕ СТРОКИ
+                        // =======================================================
+                        if (slen == 1 && ucs4 >= 1 && ucs4 <= 21) {
+                            // Превращаем наши маркеры (из ConGetDrawChar) в идеальную Unicode-графику
+                            static const FcChar32 unicode_draw[] = {
+                                0,
+                                0x250C, // 1:  DCH_C1 ┌
+                                0x2510, // 2:  DCH_C2 ┐
+                                0x2514, // 3:  DCH_C3 └
+                                0x2518, // 4:  DCH_C4 ┘
+                                0x2500, // 5:  DCH_H  ─
+                                0x2502, // 6:  DCH_V  │
+                                0x251C, // 7:  DCH_M1 ├
+                                0x2524, // 8:  DCH_M2 ┤
+                                0x252C, // 9:  DCH_M3 ┬
+                                0x2534, // 10: DCH_M4 ┴
+                                0x253C, // 11: DCH_X  ┼
+                                0x25B6, // 12: DCH_RPTR ▶
+                                0x00B6, // 13: DCH_EOL ¶ (символ конца строки)
+                                0x2666, // 14: DCH_EOF ♦ (конец файла)
+                                0x2191, // 15: DCH_END ↑ 
+                                0x25B2, // 16: DCH_AUP ▲
+                                0x25BC, // 17: DCH_ADOWN ▼
+                                0x2592, // 18: DCH_HFORE ▒
+                                0x2591, // 19: DCH_HBACK ░
+                                0x25C0, // 20: DCH_ALEFT ◀
+                                0x25B6  // 21: DCH_ARIGHT ▶
+                            };
+                            ucs4 = unicode_draw[ucs4];
+                        } else if (ucs4 < 32) {
+                            // Любой другой непечатный мусор (например, реальный \0 или \r) 
+                            // превращаем в пробел, чтобы Xft не рисовал квадраты (.notdef)
+                            ucs4 = ' ';
+                        }
+                        // =======================================================
+
+                        // Если символ не стал пробелом - рисуем его (фон для пробелов уже есть)
+                        if (ucs4 != ' ') {
+                            specs[spec_cnt].ucs4 = ucs4;
+                            // ЖЕСТКАЯ ПРИВЯЗКА К СЕТКЕ: Вычисляем пиксель
+                            specs[spec_cnt].x = (X + col + run) * FontCX;
+                            specs[spec_cnt].y = xftAscent + row * FontCY;
+                            spec_cnt++;
+                        }
+                    }
+                    run++;
+                }
+
+                // Отрисовываем весь собранный кусок текста за ОДИН вызов X11 сервера
+                if (spec_cnt > 0) {
+                    XftDrawCharSpec(xftDraw, &xftFg[fg_idx], xftFont, specs, spec_cnt);
+                }
+
+                src += run;
+                col += run;
+            }
+        }
+
+#else /* !USE_XFT */
+        {
+            PCell src = Cell;
+            int col = 0;
+            int x = X;
+            while (col < W) {
+                unsigned char attr = TCELL_ATTR(*src);
+                char    temp[512];
+                int     tlen = 0;
+                int     run_cols = 0;
+
+                while (col + run_cols < W) {
+                    TCell rc = src[run_cols];
+                    if (TCELL_ATTR(rc) != attr) break;
+                    unsigned char rb0 = TCELL_B0(rc);
+                    if (rb0 == 0x00 && TCELL_B1(rc) == 0) { run_cols++; break; }
+                    int sl = tcell_seqlen(rc);
+                    if (tlen + sl > (int)sizeof(temp) - 1) break;
+                    temp[tlen++] = (char)rb0;
+                    if (sl >= 2) temp[tlen++] = (char)TCELL_B1(rc);
+                    if (sl >= 3) temp[tlen++] = (char)TCELL_B2(rc);
+                    run_cols++;
+                }
+                if (run_cols == 0) { src++; x++; col++; continue; }
+
+                if (!useXMB)
+                    XDrawImageString(display, win, GCs[(unsigned)attr & 0xFF],
+                                     x * FontCX,
+                                     fontStruct->max_bounds.ascent + row * FontCY,
+                                     temp, tlen);
+#ifdef USE_XMB
+                else
+                    XmbDrawImageString(display, win, fontSet,
+                                       GCs[(unsigned)attr & 0xFF],
+                                       x * FontCX, FontCYD + row * FontCY,
+                                       temp, tlen);
+#endif
+                src  += run_cols;
+                x    += run_cols;
+                col  += run_cols;
+            }
+        }
+#endif /* USE_XFT */
+
+        if (row == (int)CursorY)
             DrawCursor(1);
+
         Cell += W;
     }
     return 0;
@@ -831,7 +1085,7 @@ int ConGetBox(int X, int Y, int W, int H, PCell Cell) {
     int i;
 
     for (i = 0; i < H; i++) {
-        memcpy(Cell, CursorXYPos(X, Y + i), 2 * W);
+        memcpy(Cell, CursorXYPos(X, Y + i), W * sizeof(TCell));
         Cell += W;
     }
     return 0;
@@ -870,9 +1124,11 @@ int ConScroll(int Way, int X, int Y, int W, int H, TAttr Fill, int Count) {
                   X * FontCX,
                   Y * FontCY);
         for (l = 0; l < H - Count; l++)
-            memcpy(CursorXYPos(X, Y + l), CursorXYPos(X, Y + l + Count), 2 * W);
+            memcpy(CursorXYPos(X, Y + l),
+                   CursorXYPos(X, Y + l + Count),
+                   sizeof(TCell) * W);
 
-        if (ConSetBox(X, Y + l, W, Count, Cell) == -1)
+        if (ConSetBox(X, Y + H - Count, W, Count, Cell) == -1)
             return -1;
     } else if (Way == csDown) {
         XCopyArea(display, win, win, GCs[0],
@@ -883,7 +1139,9 @@ int ConScroll(int Way, int X, int Y, int W, int H, TAttr Fill, int Count) {
                   X * FontCX,
                   (Y + Count) * FontCY);
         for (l = H - 1; l >= Count; l--)
-            memcpy(CursorXYPos(X, Y + l), CursorXYPos(X, Y + l - Count), 2 * W);
+            memcpy(CursorXYPos(X, Y + l),
+                   CursorXYPos(X, Y + l - Count),
+                   sizeof(TCell) * W);
 
         if (ConSetBox(X, Y, W, Count, Cell) == -1)
             return -1;
@@ -893,38 +1151,30 @@ int ConScroll(int Way, int X, int Y, int W, int H, TAttr Fill, int Count) {
 }
 
 int ConSetSize(int X, int Y) {
-    unsigned char *NewBuffer;
-    unsigned char *p;
+    TCell *NewBuffer;
     int i;
     int MX, MY;
 
     if (X > ConMaxCols) X = ConMaxCols;
     if (Y > ConMaxRows) Y = ConMaxRows;
 
-    p = NewBuffer = (unsigned char *) malloc(X * Y * 2);
+    NewBuffer = (TCell *)malloc(X * Y * sizeof(TCell));
     if (NewBuffer == NULL) return -1;
-    for (i = 0; i < X * Y; i++) {
-        *p++ = ' ';
-        *p++ = 0x07;
-    }
+    for (i = 0; i < X * Y; i++)
+        NewBuffer[i] = TCELL_MAKE1(' ', 0x07);
+
     MX = ScreenCols;
-    if (X < MX)
-        MX = X;
+    if (X < MX) MX = X;
     MY = ScreenRows;
-    if (Y < MY)
-        MY = Y;
-    p = NewBuffer;
-    for (i = 0; i < MY; i++) {
-        memcpy(p, CursorXYPos(0, i), MX * 2);
-        p += X * 2;
-    }
+    if (Y < MY) MY = Y;
+
+    for (i = 0; i < MY; i++)
+        memcpy(NewBuffer + i * X, CursorXYPos(0, i), MX * sizeof(TCell));
+
     free(ScreenBuffer);
     ScreenBuffer = NewBuffer;
     ScreenCols = X;
     ScreenRows = Y;
-    //ConPutBox(0, 0, ScreenCols, ScreenRows, (PCell) ScreenBuffer);
-    //if (Refresh == 0)
-    //    XResizeWindow(display, win, ScreenCols * FontCX, ScreenRows * FontCY);
     return 0;
 }
 
@@ -1151,66 +1401,164 @@ static struct {
     { 0,                 0 }
 };
 
-void ConvertKeyToEvent(KeySym key, KeySym key1, char */*keyname*/, char */*keyname1*/, int etype, int state, TEvent *Event) {
+void ConvertKeyToEvent(KeySym key, KeySym key1, char *keyname, char *keyname1, int etype, int state, TEvent *Event) {
     unsigned int myState = 0;
-
+    
+    // Изначально событие пустое, никакого мусора!
     Event->What = evNone;
+    Event->Key.Code = 0;
 
-    switch (etype) {
-    case KeyPress:
-        Event->What = evKeyDown;
-        break;
-    case KeyRelease:
-        Event->What = evKeyUp;
-        break;
-    default:
-        return ;
+    int final_event;
+    if (etype == KeyPress) final_event = evKeyDown;
+    else if (etype == KeyRelease) final_event = evKeyUp;
+    else return;
+
+    // 1. ИГНОРИРУЕМ ЧИСТЫЕ МОДИФИКАТОРЫ
+    if (key == XK_Shift_L || key == XK_Shift_R ||
+        key == XK_Control_L || key == XK_Control_R ||
+        key == XK_Alt_L || key == XK_Alt_R ||
+        key == XK_Meta_L || key == XK_Meta_R ||
+        key == XK_Caps_Lock || key == XK_Num_Lock ||
+        key == XK_ISO_Level3_Shift) {
+        return; // Выходим. Event->What ОСТАЕТСЯ evNone! Никаких пробелов!
     }
 
     if (state & ShiftMask) myState |= kfShift;
     if (state & ControlMask) myState |= kfCtrl;
     if (state & Mod1Mask) myState |= kfAlt;
-    //if (state & Mod2Mask) myState |= kfAlt; // NumLock
     if (state & Mod3Mask) myState |= kfAlt;
     if (state & Mod4Mask) myState |= kfAlt;
 
-    /* modified kabi@fi.muni.cz
-     * for old method
-     * if (!KeyAnalyze((etype == KeyPress), state, &key, &key1))
-     *     return;
-     */
-
-    //printf("key: %d ; %d ; %d\n", (int)key, (int)key1, state);
     if (key < 256 || (key1 < 256 && (myState == kfAlt || myState == (kfAlt | kfShift)))) {
         if (myState & kfAlt)
-            key = key1;
+            key = key1; // Тут всегда чистая латиница благодаря нашему XkbKeycodeToKeysym
+            
         if (myState == kfShift)
             myState = 0;
-        if (myState & (kfAlt | kfCtrl))
-            if ((key >= 'a') && (key < 'z' + 32))
-                key &= ~0x20;
+            
+        // 2. БЕЗОПАСНЫЙ ПЕРЕВОД В ВЕРХНИЙ РЕГИСТР ДЛЯ ХОТКЕЕВ
+        if (myState & (kfAlt | kfCtrl)) {
+            if (key >= 'a' && key <= 'z') {
+                key &= ~0x20; 
+            }
+        }
+            
         if ((myState & kfCtrl) && key < 32)
             key += 64;
+            
+        // ТОЛЬКО ТУТ мы подтверждаем, что событие реально произошло
+        Event->What = final_event;
         Event->Key.Code = key | myState;
         return;
-    } else {
-        for (unsigned i = 0; i < (sizeof(key_table) / sizeof(key_table[0])); i++) {
-            long k;
+    }
 
-            if ((long) key1 == key_table[i].keysym) {
-                k = key_table[i].keycode;
-                if (k < 256)
-                    if (myState == kfShift)
-                        myState = 0;
-                Event->Key.Code = k | myState;
+    /* Unicode KeySym: X11 encodes U+0100+ as 0x01000000|codepoint */
+    if ((key & 0xFF000000) == 0x01000000 && (myState == 0 || myState == kfShift)) {
+        Event->What = final_event;
+        Event->Key.Code = key & 0x00FFFFFF;
+        return;
+    }
+
+    /* Fallback for any other printable keysym: decode from keyname string.
+     * keyname is the UTF-8 string returned by XmbLookupString / i18n_lookup_sym.
+     * This handles legacy Cyrillic keysyms (0x0680-0x06FF), Greek, Hebrew,
+     * Arabic and any other non-ASCII range without needing manual tables. */
+    if ((myState == 0 || myState == kfShift) && keyname && keyname[0]) {
+        unsigned char kb0 = (unsigned char)keyname[0];
+        if (kb0 >= 0x80) {
+            /* multi-byte UTF-8 — decode codepoint */
+            int consumed;
+            unsigned long cp = utf8_decode(keyname, &consumed);
+            if (cp >= 0x80) {
+                Event->What = final_event;
+                Event->Key.Code = cp;
                 return;
             }
         }
     }
-    //printf("Unknown key: %ld %s %d %d\n", key, keyname, etype, state);
+
+
+    // Системные клавиши (Стрелки, F1-F12 и т.д.)
+    for (unsigned i = 0; i < (sizeof(key_table) / sizeof(key_table[0])); i++) {
+        if ((long) key1 == key_table[i].keysym) {
+            long k = key_table[i].keycode;
+            if (k < 256 && myState == kfShift) myState = 0;
+            
+            Event->What = final_event;
+            Event->Key.Code = k | myState;
+            return;
+        }
+    }
+
+    // Если дошли до конца и ничего не подошло - глушим событие
     Event->What = evNone;
 }
 
+
+
+/*
+void ConvertKeyToEvent(KeySym key, KeySym key1, char *keyname, char *keyname1, int etype, int state, TEvent *Event) {
+    unsigned int myState = 0;
+
+    Event->What = evNone;
+
+    if (etype == KeyPress) Event->What = evKeyDown;
+    else if (etype == KeyRelease) Event->What = evKeyUp;
+    else return;
+
+    if (state & ShiftMask) myState |= kfShift;
+    if (state & ControlMask) myState |= kfCtrl;
+    if (state & Mod1Mask) myState |= kfAlt;
+    if (state & Mod3Mask) myState |= kfAlt;
+    if (state & Mod4Mask) myState |= kfAlt;
+
+    // 1. Сначала проверяем системные клавиши (стрелки, F1-F12, Tab, Enter и т.д.)
+    // Они одинаковы во всех раскладках, поэтому проверяем key1
+    for (unsigned i = 0; i < (sizeof(key_table) / sizeof(key_table[0])); i++) {
+        if ((long) key1 == key_table[i].keysym || (long) key == key_table[i].keysym) {
+            long k = key_table[i].keycode;
+            if (k < 256 && myState == kfShift) 
+                myState = 0; // Shift уже учтен в самом символе
+            Event->Key.Code = k | myState;
+            return;
+        }
+    }
+
+    // 2. Обработка базовой латиницы (и наших хоткеев)
+    if (key >= 0x20 && key <= 0x7E) {
+        if (myState == kfShift) 
+            myState = 0; // Shift для букв обрабатывается самим X11 (дает 'A' вместо 'a')
+
+        // Для хоткеев Ctrl/Alt ядро FTE требует заглавные буквы
+        if (myState & (kfAlt | kfCtrl)) {
+            if (key >= 'a' && key <= 'z') 
+                key &= ~0x20; // Переводим в верхний регистр чисто и безопасно
+        }
+
+        // Классический терминальный хак для Ctrl (Ctrl+A = 1, возвращаем в ASCII 'A')
+        if ((myState & kfCtrl) && key < 32)
+            key += 64;
+
+        Event->Key.Code = key | myState;
+        return;
+    }
+
+    // 3. Чистый ввод Unicode (национальные символы)
+    // Если зажат Alt или Ctrl, мы сюда не должны попадать (они перехватываются латиницей в ProcessXEvents)
+    if (myState == 0 || myState == kfShift) {
+        if ((key & 0xFF000000) == 0x01000000) {
+            Event->Key.Code = key & 0x00FFFFFF;
+            return;
+        }
+        // Оставляем фолбэк для кириллицы (если X11 старый)
+        if (key >= 0x0680 && key <= 0x06FF) {
+            // Тут старый маппинг кириллицы, если он тебе нужен, но обычно XIM уже возвращает 0x01000000
+        }
+        Event->Key.Code = key | myState;
+        return;
+    }
+}
+*/
 
 static TEvent LastMouseEvent = { evNone };
 
@@ -1452,9 +1800,23 @@ void ProcessXEvents(TEvent *Event) {
                 break;
         }
         XLookupString(&keyEvent1, keyName1, sizeof(keyName1), &key1, 0);
-        //printf("keyEvent->state = %d %s %08X\n", keyEvent->state, keyName, key);
-        //printf("keyEvent1.state = %d %s %08X\n", keyEvent1.state, keyName1, key1);
-        //key1 = XLookupKeysym(keyEvent, 0);
+        if (state & (ControlMask | Mod1Mask | Mod3Mask | Mod4Mask)) {
+            KeySym raw_sym = 0;
+            // Ищем латинский символ (ASCII 0x20-0x7E) на физической клавише 
+            // во всех доступных группах (раскладках) X11
+            for (int grp = 0; grp < 4; grp++) {
+                KeySym sym = XkbKeycodeToKeysym(display, keyEvent->keycode, grp, 0);
+                if (sym >= 0x20 && sym <= 0x7E) {
+                    raw_sym = sym;
+                    break;
+                }
+            }
+            if (raw_sym) {
+                key = raw_sym;
+                key1 = raw_sym;
+            }
+        }
+        printf("DEBUG: key=0x%04lX, state=0x%X, keyName='%s'\n", key, state, keyName);
         ConvertKeyToEvent(key, key1, keyName, keyName1, event.type, state, Event);
         break;
     case MotionNotify:
@@ -2054,10 +2416,12 @@ GUI::GUI(int &argc, char **argv, int XSize, int YSize) {
                 XSize = YSize = -1;
                 setUserPosition = 1;
             }
-        } else 
+        } else
         if ((strcmp(argv[c], "-noxmb") == 0) || (strcmp(argv[c], "--noxmb") == 0)) {
+#ifndef USE_XFT
             useXMB = 0;
-        } else 
+#endif
+        } else
         if ((strcmp(argv[c], "-no18n") == 0) || (strcmp(argv[c], "--noi18n") == 0)) {
             useI18n = 0;
         } else 
@@ -2094,12 +2458,17 @@ GUI::~GUI() {
     i18n_destroy(&i18n_ctx);
     for (int i = 0; i < 256; i++)
         XFreeGC(display, GCs[i]);
+#ifdef USE_XFT
+    if (xftDraw)  XftDrawDestroy(xftDraw);
+    if (xftFont)  XftFontClose(display, xftFont);
+#else
 #ifdef USE_XMB
     if (fontSet)
         XFreeFontSet(display, fontSet);
 #endif
     if (fontStruct)
         XFreeFont(display, fontStruct);
+#endif /* USE_XFT */
     XDestroyWindow(display, win);
     XCloseDisplay(display);
 
@@ -2247,6 +2616,17 @@ int GUI::RunProgram(int mode, char *Command) {
     return system(Cmd);
 }
 
+
+char ConGetDrawChar(int idx) {
+    // Вместо старой абракадабры мы отдаем уникальные контрольные коды (от 1 до 21).
+    // Мы перехватим их в ConPutBox и превратим в красивые Unicode-рамки.
+    if (idx >= 0 && idx <= 20) {
+        return (char)(idx + 1);
+    }
+    return ' ';
+}
+
+/*
 char ConGetDrawChar(int idx) {
     static const char *tab = NULL;
 
@@ -2257,3 +2637,4 @@ char ConGetDrawChar(int idx) {
 
     return tab[idx];
 }
+*/
