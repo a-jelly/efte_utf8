@@ -11,11 +11,13 @@
 
 #include <ncurses.h>
 #include <unistd.h>
+#include <locale.h>
 
 #include "sysdep.h"
 #include "c_config.h"
 #include "console.h"
 #include "gui.h"
+#include "utf8.h"
 
 /* Escape sequence delay in milliseconds */
 #define escDelay 10
@@ -128,6 +130,10 @@ static int ConInitColors() {
 int ConInit(int /*XSize */ , int /*YSize */) {
     int ch;
     const char *s;
+
+    /* Must be called before initscr() so ncurses knows the locale
+     * and handles UTF-8 multibyte input/output correctly */
+    setlocale(LC_ALL, "");
 
     ESCDELAY = escDelay;
     initscr();
@@ -248,12 +254,7 @@ static unsigned int  GetDch(int idx) {
 
 static int last_attr = A_NORMAL;
 
-// "Cell" is currently an integer type, but its contents is treated as
-// a char data struct. So, create a struct to cast it that way.
-typedef struct CellData {
-    unsigned char ch;
-    unsigned char attr;
-} CellData;
+// "Cell" is now a 32-bit TCell: bits 7..0=b0, 15..8=b1, 23..16=b2, 31..24=attr
 
 int ConPutBox(int X, int Y, int W, int H, PCell Cell) {
     int CurX, CurY;
@@ -263,41 +264,48 @@ int ConPutBox(int X, int Y, int W, int H, PCell Cell) {
     if (Y + H > LINES)
         H = LINES - Y;
 
-    for (int j = 0 ; j < H; j++) {
-        memcpy(SavedScreen[Y+j] + X, Cell, W*sizeof(TCell)); // copy outputed line to saved screen
+    for (int j = 0; j < H; j++) {
+        memcpy(SavedScreen[Y+j] + X, Cell, W * sizeof(TCell));
         move(yy++, X);
-        for (int i = 0; i < W; i++) {
-            CellData *celldata = (CellData *)Cell;
-            unsigned char ch = celldata->ch;
-            int attr = fte_curses_attr[celldata->attr];
-            if (attr != last_attr) {
-                wattrset(stdscr, attr);
-                last_attr = attr;
-            } else attr = 0;
 
-            if (ch < 32) {
-                if (ch <= 20) {
-                    waddch(stdscr, GetDch(ch));
-                } else
-                    waddch(stdscr, '.');
-            } else if (ch < 128 || ch >= 160) {
-                waddch(stdscr, ch);
+        for (int i = 0; i < W; i++, Cell++) {
+            TCell tc = *Cell;
+            unsigned char b0   = TCELL_B0(tc);
+            unsigned char b1   = TCELL_B1(tc);
+            unsigned char b2   = TCELL_B2(tc);
+            unsigned char attr = TCELL_ATTR(tc);
+
+            int ca = fte_curses_attr[attr];
+            if (ca != last_attr) {
+                wattrset(stdscr, ca);
+                last_attr = ca;
             }
-            /*      else if(ch < 180)
-             {
-             waddch(stdscr,GetDch(ch-128));
-             }
-             */
-            else {
-                waddch(stdscr, '.');
+
+            /* double-width placeholder */
+            if (b0 == 0x00 && b1 == 0 && b2 == 0)
+                continue;
+
+            /* control character */
+            if (b0 < 0x20) {
+                waddch(stdscr, (b0 <= 20) ? GetDch(b0) : (chtype)'.');
+                continue;
             }
-            Cell++;
+
+            /* ASCII */
+            if (b0 < 0x80) {
+                waddch(stdscr, b0);
+                continue;
+            }
+
+            /* UTF-8 multi-byte: up to 3 bytes in TCell */
+            char seq[5] = {(char)b0, (char)b1, (char)b2, 0, 0};
+            int slen = tcell_seqlen(tc);
+            waddnstr(stdscr, seq, slen);
         }
     }
 
     move(CurY, CurX);
     refresh();
-
     return 0;
 }
 
@@ -337,7 +345,7 @@ int ConScroll(int Way, int X, int Y, int W, int H, TAttr Fill, int Count) {
 
     box = new TCell [W * H];
 
-    TCell fill = (((unsigned) Fill) << 8) | ' ';
+    TCell fill = TCELL_MAKE1(' ', Fill);
 
     ConGetBox(X, Y, W, H, box);
 
@@ -639,14 +647,24 @@ int ConGetEvent(TEventMask /*EventMask */ ,
 
     if ((rtn = WaitPipeEvent(Event, -1, sfd, 1)) != 0) return rtn;
 
-    int ch = wgetch(stdscr);
+    /* Use get_wch() so ncurses assembles multi-byte UTF-8 sequences
+     * for us and returns a proper Unicode codepoint in wch. */
+    wint_t wch = 0;
+    int wret = get_wch(&wch);
+    int ch = (int)wch;
+
     Event->What = evKeyDown;
     KEvent->Code = 0;
 
-    if (SevenBit && ch > 127 && ch < 256) {
+    if (wret == ERR) {
+        Event->What = evNone;
+        return 0;
+    }
+
+    if (SevenBit && wret == OK && ch > 127 && ch < 256) {
         KEvent->Code |= kfAlt;
         ch -= 128;
-        if (ch > 0x60 && ch < 0x7b) { /* Alt-A == Alt-a*/
+        if (ch > 0x60 && ch < 0x7b) {
             ch -= 0x20;
         }
     }
@@ -663,9 +681,13 @@ int ConGetEvent(TEventMask /*EventMask */ ,
         KEvent->Code |= (kfCtrl | (ch + 0100));
     } else if (ch == 0x7f) {
         KEvent->Code = kbBackSp;
+    } else if (wret == OK && ch >= 0x80) {
+        /* Unicode codepoint from get_wch — store directly.
+         * GetUtf8FromEvent will encode it back to UTF-8 for insertion. */
+        KEvent->Code = (unsigned long)ch;
     } else if (ch < 256) {
         KEvent->Code |= ch;
-    } else { // > 255
+    } else { // KEY_* special keys (wret == KEY_CODE_YES)
         switch (ch) {
         case KEY_RESIZE:
             ResizeWindow(COLS, LINES);
