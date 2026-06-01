@@ -41,6 +41,26 @@ int Hilit_SH(EBuffer *BF, int /*LN*/, PCell B, int Pos, int Width, ELine *Line, 
         IF_TAB() else {
             int j = 1;
 
+            if ((unsigned char)*p >= 0x80) {
+                int ulen = 1;
+                while (ulen < len && ((unsigned char)p[ulen] & 0xC0) == 0x80) {
+                    ulen++;
+                }
+
+                Color = CLR_Normal;
+                if (State == hsSH_SQuote || State == hsSH_DQuote) Color = CLR_String;
+                else if (State == hsSH_Comment) Color = CLR_Comment;
+                
+                j = ulen;
+                
+                if (StateMap) memset(StateMap + i, State, j);
+                if (B) C += MoveMem(B, C - Pos, Width, p, HILIT_CLRD(), j);
+                i += j;
+                len -= j;
+                p += j;
+                continue;
+            }
+
             if (!isspace(*p))
                 CommandStr++;
             switch( *p ) {
