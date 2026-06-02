@@ -119,7 +119,6 @@ static int GetVSize(int id, int &X, int &Y) {
     return 0;
 }
 
-
 static int DrawVMenu(int x, int y, int id, int active) {
     TDrawBuffer B;
     int i, len;
@@ -162,7 +161,7 @@ static int DrawVMenu(int x, int y, int id, int active) {
             MoveCh(B, ConGetDrawChar(DCH_V), hcMenu_Background, 1);
             MoveCh(B + w - 1, ConGetDrawChar(DCH_V), hcMenu_Background, 1);
 
-            MoveCStr(B, 2, len + 2, Menus[id].Items[i].Name, color1, color2, len);
+            MoveCStr(B, 2, len + 2, name, color1, color2, len);
             if (arg)
                 MoveCStr(B, w - len2 - 2, w + 4, arg, color1, color2, len2);
 

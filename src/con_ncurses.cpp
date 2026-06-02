@@ -281,13 +281,20 @@ int ConPutBox(int X, int Y, int W, int H, PCell Cell) {
                 last_attr = ca;
             }
 
-            /* double-width placeholder */
+            /* double-width placeholder / empty cell */
             if (b0 == 0x00 && b1 == 0 && b2 == 0)
                 continue;
 
-            /* control character */
+            /* box-drawing pseudo-graphics: ConGetDrawChar() emits 1..21
+               (idx+1) so DCH_C1 no longer collides with the b0==0 placeholder */
+            if (b0 >= 1 && b0 <= 21) {
+                waddch(stdscr, GetDch(b0 - 1));
+                continue;
+            }
+
+            /* other control characters */
             if (b0 < 0x20) {
-                waddch(stdscr, (b0 <= 20) ? GetDch(b0) : (chtype)'.');
+                waddch(stdscr, (chtype)'.');
                 continue;
             }
 
@@ -822,9 +829,14 @@ int ConGetEvent(TEventMask /*EventMask */ ,
     return 1;
 }
 
+
 char ConGetDrawChar(int idx) {
-    //    return 128+idx;
-    return idx;
+    /* Emit 1..21 (idx+1) so the upper-left corner (DCH_C1 == 0) does not
+       collide with the b0 == 0 double-width placeholder in ConPutBox.
+       Mirrors the X11 backend (con_x11.cpp). */
+    if (idx >= 0 && idx <= 20)
+        return (char)(idx + 1);
+    return ' ';
 }
 
 int ConPutEvent(TEvent Event) {
