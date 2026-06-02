@@ -51,6 +51,7 @@
 #include "console.h"
 #include "gui.h"
 #include "utf8.h"
+#include "dch_unicode.h"
 
 #include "con_i18n.h"
 #include "s_files.h"
@@ -835,17 +836,7 @@ void DrawCursor(int Show) {
                 ucs4 = ((b0 & 0x0F) << 12) | ((TCELL_B1(tc) & 0x3F) << 6) | (TCELL_B2(tc) & 0x3F);
             }
 
-            if (slen == 1 && ucs4 >= 1 && ucs4 <= 21) {
-                static const FcChar32 unicode_draw[] = {
-                    0, 0x250C, 0x2510, 0x2514, 0x2518, 0x2500, 0x2502,
-                    0x251C, 0x2524, 0x252C, 0x2534, 0x253C, 0x25B6,
-                    0x00B6, 0x2666, 0x2191, 0x25B2, 0x25BC, 0x2592,
-                    0x2591, 0x25C0, 0x25B6
-                };
-                ucs4 = unicode_draw[ucs4];
-            } else if (ucs4 < 32) {
-                ucs4 = ' ';
-            }
+            ucs4 = DchToUnicode(ucs4, slen);
         } else {
             ucs4 = ' ';
         }
@@ -961,43 +952,9 @@ int ConPutBox(int X, int Y, int W, int H, PCell Cell) {
                             ucs4 = ((b0 & 0x0F) << 12) | ((TCELL_B1(tc) & 0x3F) << 6) | (TCELL_B2(tc) & 0x3F);
                         }
 
-                        // =======================================================
-                        // FIX FOR PSEUDO-GRAPHICS AND RECTANGLES AT THE END OF THE LINE
-                        // =======================================================
-                        if (slen == 1 && ucs4 >= 1 && ucs4 <= 21) {
-                            // Convert our markers (from ConGetDrawChar) into perfect Unicode graphics
-                            static const FcChar32 unicode_draw[] = {
-                                0,
-                                0x250C, // 1:  DCH_C1 ┌
-                                0x2510, // 2:  DCH_C2 ┐
-                                0x2514, // 3:  DCH_C3 └
-                                0x2518, // 4:  DCH_C4 ┘
-                                0x2500, // 5:  DCH_H  ─
-                                0x2502, // 6:  DCH_V  │
-                                0x251C, // 7:  DCH_M1 ├
-                                0x2524, // 8:  DCH_M2 ┤
-                                // 0x252C, // 9:  DCH_M3 ┬
-                                0x2192,   // 9:  DCH_M3 ┬
-                                0x2534, // 10: DCH_M4 ┴
-                                0x253C, // 11: DCH_X  ┼
-                                0x25B6, // 12: DCH_RPTR ▶
-                                0x00B7, // 13: DCH_EOL ¶ (end of line character)
-                                0x2666, // 14: DCH_EOF ♦ (end of file)
-                                0x2500, // 15: DCH_END ─ (line - end of buffer)
-                                0x25B2, // 16: DCH_AUP ▲
-                                0x25BC, // 17: DCH_ADOWN ▼
-                                0x2592, // 18: DCH_HFORE ▒
-                                0x2591, // 19: DCH_HBACK ░
-                                0x25C0, // 20: DCH_ALEFT ◀
-                                0x25B6  // 21: DCH_ARIGHT ▶
-                            };
-                            ucs4 = unicode_draw[ucs4];
-                        } else if (ucs4 < 32) {
-                            // Any other non-printable garbage (for example, real \0 or \r) 
-                            // is converted into a space so that Xft doesn't draw squares (.notdef)
-                            ucs4 = ' ';
-                        }
-                        // =======================================================
+                        // Convert internal draw codes (1..21) to Unicode and
+                        // blank other non-printables (shared with DrawCursor).
+                        ucs4 = DchToUnicode(ucs4, slen);
 
                         // If the character is not a space - draw it (background for spaces is already drawn)
                         if (ucs4 != ' ') {
