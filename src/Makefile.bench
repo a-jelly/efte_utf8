@@ -1,0 +1,2 @@
+all:
+	g++ -O2 -DSUB_NO_FTE -o bench_sublime bench_sublime.cpp h_sublime.cpp -lyaml -lpcre2-8

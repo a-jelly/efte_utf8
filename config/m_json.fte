@@ -1,0 +1,48 @@
+# From: Keith Humphreys <keith@ViaThe.Net>
+#
+# FTE is wonderful.
+# Several months ago I was looking at SIOD, and I hacked a "fte config" file
+# which is 98% accurate. :-)  
+# 
+# Anyway, as it might be of use, here it is:
+
+# ! colors probably need fixing --Mark
+
+colorize JSON {
+    SyntaxParser       = 'Sublime';
+    SyntaxFile          = 'syntax/JSON.sublime-syntax';    
+    
+    color {
+        { 'Normal',      'Editor_Default' },
+        { 'Keyword',     'Editor_Keywords' },
+        { 'Number',      'Lang_DecimalNumber' },
+        { 'HexNumber',   'Lang_HexNumber' },
+        { 'Punctuation', 'Lang_Punctuation' },
+        { 'String',      'Lang_String' },
+        { 'Symbol',      'Lang_Command' },
+        { 'Comment',     'Lang_Comment' },
+        { 'Special',     'Lang_Control' },
+    };
+}
+
+mode JSON: SOURCE {      # JSON
+    FileNameRx          = /\.\json$/;
+    HilitOn             = 1;
+    Colorizer           = 'JSON';
+    AutoIndent          = 1;
+    IndentMode          = 'PLAIN';
+    MatchCase           = 0;  #scheme is case insensitive.
+    Trim                = 1;
+    MultiLineHilit      = 1;
+    AutoHilitParen      = 1;
+
+    SaveFolds           = 2;      # save fold info at end of line
+    CommentStart        = ' ;';
+    CommentEnd          = '';
+
+    WordChars           = '-A-Za-z0-9*%:?!>';  #first noticed in m_plain.fte
+
+#    RoutineRegexp       = '(';
+}
+
+oinclude 'mym_json.fte';

@@ -197,6 +197,7 @@ include 'm_gawk.fte';
 include 'm_go.fte';
 include 'm_groovy.fte';
 include 'm_html.fte';
+include 'm_json.fte';
 include 'm_icon.fte';
 include 'm_idl.fte';
 include 'm_ipf.fte';

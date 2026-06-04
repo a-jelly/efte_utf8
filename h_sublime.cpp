@@ -132,7 +132,6 @@ static int tokenToSlot(const std::string &t) {
         if (contains(t, "float")) return CLR_FloatNumber;
         return CLR_Number;
     }
-
     if (startsWith(t, "constant.language")) return CLR_Keyword;
     if (startsWith(t, "constant"))          return CLR_Number;
 
@@ -144,10 +143,6 @@ static int tokenToSlot(const std::string &t) {
     if (startsWith(t, "variable.function")) return CLR_Function;
     if (startsWith(t, "entity.name.function") ||
         startsWith(t, "support.function"))  return CLR_Function;
-
-    if (startsWith(t, "support.command") ||
-        startsWith(t, "entity.name.command")) return CLR_Command;
-
     if (startsWith(t, "entity.name.tag"))   return CLR_Tag;
     if (startsWith(t, "entity.name.type") ||
         startsWith(t, "support.type"))      return CLR_Symbol;
@@ -366,16 +361,6 @@ static void parseRule(SubGrammar *g, yaml_document_t *doc, yaml_node_t *m,
         }
     } else if (pop) {
         r.action = ACT_POP;
-        if (pop->type == YAML_SCALAR_NODE) {
-            std::string pval = yscalar(pop);
-            if (pval.size() > 0 && pval[0] >= '1' && pval[0] <= '9') {
-                r.targets.push_back(atoi(pval.c_str()));
-            } else {
-                r.targets.push_back(1);
-            }
-        } else {
-            r.targets.push_back(1);
-        }
     }
 
     g->ctx[ctxIdx].rules.push_back(r);
@@ -431,6 +416,7 @@ SubGrammar *SubLoadGrammar(const char *path, char *err, size_t errlen) {
         c.name = name;
         g->ctx.push_back(c);
     }
+
 
     /* pass 2: parse rules */
     int ci = 0;
@@ -488,6 +474,7 @@ struct SubBest {
     PCRE2_SIZE ov[2 * SUB_MAXGRP];
     int        ngrp;
 };
+
 
 static void scanContext(SubGrammar *g, int ctxIdx,
                         const char *chars, int len, int pos,
@@ -596,16 +583,7 @@ int SubHighlightLine(SubGrammar *g, const char *chars, int len,
                 changed = true;
             }
             break;
-        case ACT_POP:
-            {
-                int npop = (best.targets && !best.targets->empty()) ? (*best.targets)[0] : 1;
-                while (npop > 0 && stack.size() > 1) {
-                    stack.pop_back();
-                    npop--;
-                    changed = true;
-                }
-            }
-            break;
+        case ACT_POP:  if (stack.size() > 1) { stack.pop_back(); changed = true; } break;
         default: break;
         }
         if (changed) contentSlot = stackContentSlot(g, stack);
@@ -732,6 +710,7 @@ int Hilit_SUBLIME(EBuffer *BF, int /*LN*/, PCell B, int Pos, int Width,
 
     State = (hlState)SubHighlightLine(g, Line->Chars, n, (int)State, slots.data());
 
+
     for (i = 0; i < Line->Count;) {
         Color = (ChColor)slots[i];
         IF_TAB()
@@ -742,6 +721,7 @@ int Hilit_SUBLIME(EBuffer *BF, int /*LN*/, PCell B, int Pos, int Width,
                    Line->Chars[i + j] != '\t') {
                 j++;
             }
+
 
             if (StateMap)
                 memset(StateMap + i, State, j);

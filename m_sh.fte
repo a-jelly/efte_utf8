@@ -1,7 +1,8 @@
 colorize SH {
     SyntaxParser        = 'Sublime';
     SyntaxFile          = 'syntax/Bash.sublime-syntax';
-
+   
+    
     color {
         { 'Normal',     'Editor_Default' },
         { 'Keyword',    'Editor_Keywords' },
@@ -10,7 +11,6 @@ colorize SH {
         { 'String',     'Lang_String' },
         { 'Control',    'Lang_Command' },
         { 'Command',    'Lang_Function' },
-        { 'Function',   'Lang_Function' },
         { 'Punctuation','Lang_Punctuation' },
         { 'Variable',   'Lang_Label' },
     };
