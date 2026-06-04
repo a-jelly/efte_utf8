@@ -51,6 +51,7 @@ HILIT_P(Hilit_TEX);
 HILIT_P(Hilit_FTE);
 HILIT_P(Hilit_CATBS);
 HILIT_P(Hilit_SIMPLE);
+HILIT_P(Hilit_SUBLIME);
 
 int Indent_C(EBuffer *B, int Line, int PosCursor);
 int Indent_REXX(EBuffer *B, int Line, int PosCursor);
@@ -286,6 +287,8 @@ public:
     EColorize *Next;
     EColorize *Parent;
     int SyntaxParser;
+    char *SyntaxFile;       // path to .sublime-syntax grammar (Sublime engine)
+    void *sg;               // SubGrammar* (lazily loaded; owned by this object)
     ColorKeywords Keywords; // keywords to highlight
     HMachine *hm;
     ChColor Colors[COUNT_CLR];

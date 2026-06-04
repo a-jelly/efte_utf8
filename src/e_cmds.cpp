@@ -9,6 +9,7 @@
  */
 
 #include "fte.h"
+#include "h_sublime.h"
 
 int EBuffer::MoveLeft() {
     if (CP.Col == 0) {
@@ -1412,8 +1413,10 @@ int EBuffer::ChangeMode(const char *AMode) {
     if ((Mode = FindMode(AMode)) != NULL) {
         Flags = Mode->Flags;
         HilitProc = 0;
-        if (Mode->fColorize)
+        if (Mode->fColorize) {
             HilitProc = GetHilitProc(Mode->fColorize->SyntaxParser);
+            SubEnsureGrammar(Mode->fColorize);
+        }
         FullRedraw();
         return 1;
     }
@@ -1424,8 +1427,10 @@ int EBuffer::ChangeMode(const char *AMode) {
 int EBuffer::ChangeKeys(const char *AMode) {
     if ((Mode = FindMode(AMode)) != NULL) {
         HilitProc = 0;
-        if (Mode->fColorize)
+        if (Mode->fColorize) {
             HilitProc = GetHilitProc(Mode->fColorize->SyntaxParser);
+            SubEnsureGrammar(Mode->fColorize);
+        }
         FullRedraw();
         return 1;
     }
@@ -1437,8 +1442,10 @@ int EBuffer::ChangeFlags(const char *AMode) {
     if (EMode *XMode = FindMode(AMode)) {
         Flags = XMode->Flags;
         HilitProc = 0;
-        if (Mode && Mode->fColorize)
+        if (Mode && Mode->fColorize) {
             HilitProc = GetHilitProc(Mode->fColorize->SyntaxParser);
+            SubEnsureGrammar(Mode->fColorize);
+        }
         FullRedraw();
         return 1;
     }

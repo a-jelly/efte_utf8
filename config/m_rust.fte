@@ -1,0 +1,45 @@
+#
+# eFTE mode for Rust
+#
+# Uses the Sublime syntax engine with the official sublimehq grammar.
+# Color slots mapped to standard editor globals.
+#
+
+colorize RUST {
+    SyntaxParser        = 'Sublime';
+    SyntaxFile          = 'syntax/Rust.sublime-syntax';
+
+    color {
+        { 'Normal',        'Editor_Default' },
+        { 'Keyword',       'Editor_Keywords' },
+        { 'Number',        'Lang_DecimalNumber' },
+        { 'HexNumber',     'Lang_HexNumber' },
+        { 'FloatNumber',   'Lang_DecimalNumber' },
+        { 'Punctuation',   'Lang_Punctuation' },
+        { 'String',        'Lang_String' },
+        { 'Comment',       'Lang_Comment' },
+        { 'Function',      'Lang_Function' },
+        { 'Directive',     'Lang_Preprocessor' },  # attributes #[...]
+        { 'Variable',      'Lang_Label' },
+        { 'Symbol',        'Lang_Function' },       # type names
+        { 'Special',       'Lang_String' },          # escape sequences
+    };
+}
+
+mode RUST: SOURCE {
+    FileNameRx          = /\.\c{RS}$/;
+    HilitOn             = 1;
+    Colorizer           = 'RUST';
+    AutoIndent          = 1;
+    IndentMode          = 'C';
+    MatchCase           = 1;
+    Trim                = 1;
+    MultiLineHilit      = 1;
+    AutoHilitParen      = 1;
+
+    SaveFolds           = 2;
+    CommentStart        = ' //';
+    CommentEnd          = '';
+}
+
+oinclude 'mym_rust.fte';

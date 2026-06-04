@@ -52,6 +52,7 @@ typedef int ChColor;
 #define HILIT_FTE    14
 #define HILIT_CATBS  15
 #define HILIT_SIMPLE 16
+#define HILIT_SUBLIME 17
 
 #define INDENT_PLAIN    0
 #define INDENT_C        1
@@ -220,6 +221,7 @@ extern EBufferFlags DefaultBufferFlags;
 #define EM_LocalMenu 1
 
 #define COL_SyntaxParser 1
+#define COL_SyntaxFile   2
 
 #define CLR_Normal         0
 #define CLR_Keyword        1

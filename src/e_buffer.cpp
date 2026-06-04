@@ -10,6 +10,7 @@
 
 #include "fte.h"
 #include "c_history.h"
+#include "h_sublime.h"
 
 EBuffer *SSBuffer = 0; // scrap buffer (clipboard)
 
@@ -69,8 +70,10 @@ EBuffer::EBuffer(int createFlags, EModel **ARoot, const char * /*AName*/)
     StartHilit = 0;
     EndHilit = -1;
     HilitProc = 0;
-    if (Mode && Mode->fColorize)
+    if (Mode && Mode->fColorize) {
         HilitProc = GetHilitProc(Mode->fColorize->SyntaxParser);
+        SubEnsureGrammar(Mode->fColorize);
+    }
     InsertLine(CP, 0, 0); /* there should always be at least one line in the edit buffer */
     Flags = (Mode->Flags);
     Modified = 0;
@@ -492,8 +495,10 @@ int EBuffer::SetFileName(const char *AFileName, const char *AMode) {
     assert(Mode != 0);
     Flags = (Mode->Flags);
     HilitProc = 0;
-    if (Mode && Mode->fColorize)
+    if (Mode && Mode->fColorize) {
         HilitProc = GetHilitProc(Mode->fColorize->SyntaxParser);
+        SubEnsureGrammar(Mode->fColorize);
+    }
     UpdateTitle();
     return FileName ? 1 : 0;
 }

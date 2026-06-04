@@ -1,0 +1,46 @@
+#
+# eFTE mode for Kotlin
+#
+# Uses the new declarative 'Sublime' syntax engine (h_sublime.cpp) driven by a
+# community .sublime-syntax grammar. Keywords, strings, numbers, comments etc.
+# all come from the grammar; only the slot -> colour mapping lives here.
+# Colour slots are mirrored from the Java mode (m_java.fte).
+#
+
+colorize KOTLIN {
+    SyntaxParser        = 'Sublime';
+    SyntaxFile          = 'syntax/Kotlin.sublime-syntax';
+
+    color {
+        { 'Normal',        'Editor_Default' },
+        { 'Keyword',       'Editor_Keywords' },
+        { 'Number',        'Lang_DecimalNumber' },
+        { 'HexNumber',     'Lang_HexNumber' },
+        { 'FloatNumber',   'Lang_DecimalNumber' },
+        { 'Punctuation',   'Lang_Punctuation' },
+        { 'String',        'Lang_String' },
+        { 'Comment',       'Lang_Comment' },
+        { 'Function',      'Lang_Function' },
+        { 'Directive',     'Lang_Preprocessor' },  # annotations
+        { 'Variable',      'Lang_Label' },
+        { 'Symbol',        'Lang_Function' },
+    };
+}
+
+mode KOTLIN: SOURCE {            # Kotlin mode
+    FileNameRx          = /\.\c{KT}|{KTS}$/;
+    HilitOn             = 1;
+    Colorizer           = 'KOTLIN';
+    AutoIndent          = 1;
+    IndentMode          = 'C';
+    MatchCase           = 1;
+    Trim                = 1;
+    MultiLineHilit      = 1;
+    AutoHilitParen      = 1;
+
+    SaveFolds           = 2;      # save fold info at end of line
+    CommentStart        = ' //';
+    CommentEnd          = '';
+}
+
+oinclude 'mym_kotlin.fte';

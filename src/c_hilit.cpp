@@ -9,6 +9,7 @@
  */
 
 #include "fte.h"
+#include "h_sublime.h"
 
 static const struct {
     const char *Name;
@@ -29,6 +30,7 @@ static const struct {
     { "FTE", HILIT_FTE, Hilit_FTE },
     { "CATBS", HILIT_CATBS, Hilit_CATBS },
     { "SIMPLE", HILIT_SIMPLE, Hilit_SIMPLE },
+    { "Sublime", HILIT_SUBLIME, Hilit_SUBLIME },
 };
 
 static const struct {
@@ -125,6 +127,8 @@ int EBuffer::HilitWord() {
 EColorize::EColorize(const char *AName, const char *AParent) {
     Name = strdup(AName);
     SyntaxParser = HILIT_PLAIN;
+    SyntaxFile = 0;
+    sg = 0;
     Next = Colorizers;
     hm = 0;
     Colorizers = this;
@@ -141,6 +145,9 @@ EColorize::EColorize(const char *AName, const char *AParent) {
 
 EColorize::~EColorize() {
     free(Name);
+    free(SyntaxFile);
+
+    if (sg) SubFreeGrammar((SubGrammar *)sg);
 
     for (int i = 0; i < CK_MAXLEN; i++)
         free(Keywords.key[i]);

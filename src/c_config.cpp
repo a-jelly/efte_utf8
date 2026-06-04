@@ -474,6 +474,10 @@ static int SetColorizeString(EColorize *Colorize, long what, const char *string)
     case COL_SyntaxParser:
         Colorize->SyntaxParser = GetHilitMode(string);
         break;
+    case COL_SyntaxFile:
+        free(Colorize->SyntaxFile);
+        Colorize->SyntaxFile = strdup(string);
+        break;
     default:
         ENDFUNCRC(-1);
     }

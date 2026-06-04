@@ -58,6 +58,7 @@ SET( BASE_FTE_SOURCES
   e_undo.cpp egui.cpp fte.cpp g_draw.cpp g_menu.cpp gui.cpp h_ada.cpp
   h_c.cpp h_cont.cpp h_catbs.cpp h_fte.cpp h_ipf.cpp h_make.cpp h_msg.cpp
   h_pascal.cpp h_perl.cpp h_plain.cpp h_rexx.cpp h_sh.cpp h_simple.cpp
+  h_sublime.cpp
   h_tex.cpp i_ascii.cpp i_choice.cpp i_complete.cpp i_input.cpp i_key.cpp
   i_modelview.cpp i_oview.cpp i_search.cpp i_view.cpp indent.cpp log.cpp
   o_buffer.cpp o_buflist.cpp o_cvs.cpp o_cvsbase.cpp o_cvsdiff.cpp o_directory.cpp
@@ -141,6 +142,28 @@ INCLUDE_DIRECTORIES("${CMAKE_CURRENT_BINARY_DIR}")
 # PLATFORM INDEPENDENT BUILDS
 #
 # =============================================================================
+# ---------------------------------------------------------------------------
+# Sublime-syntax highlight engine (h_sublime.cpp) needs PCRE2 (8-bit) + libyaml.
+# (Linux / BSD targets; on Arch: pacman -S pcre2 libyaml)
+# ---------------------------------------------------------------------------
+FIND_PACKAGE( PkgConfig QUIET )
+IF( PKG_CONFIG_FOUND )
+  PKG_CHECK_MODULES( PCRE2 libpcre2-8 )
+  PKG_CHECK_MODULES( YAML  yaml-0.1 )
+ENDIF( PKG_CONFIG_FOUND )
+IF( NOT PCRE2_FOUND )
+  FIND_LIBRARY( PCRE2_LIBRARIES pcre2-8 )
+ENDIF( NOT PCRE2_FOUND )
+IF( NOT YAML_FOUND )
+  FIND_LIBRARY( YAML_LIBRARIES yaml )
+ENDIF( NOT YAML_FOUND )
+IF( PCRE2_INCLUDE_DIRS )
+  INCLUDE_DIRECTORIES( ${PCRE2_INCLUDE_DIRS} )
+ENDIF( PCRE2_INCLUDE_DIRS )
+IF( YAML_INCLUDE_DIRS )
+  INCLUDE_DIRECTORIES( ${YAML_INCLUDE_DIRS} )
+ENDIF( YAML_INCLUDE_DIRS )
+SET( SYSTEM_LIBS ${SYSTEM_LIBS} ${PCRE2_LIBRARIES} ${YAML_LIBRARIES} )
 
 ADD_LIBRARY( eftebase STATIC ${BASE_FTE_SOURCES} )
 

@@ -1,0 +1,46 @@
+#
+# eFTE mode for Go
+#
+# Uses the Sublime syntax engine with the official sublimehq grammar.
+# Color slots mapped to standard editor globals.
+#
+
+colorize GO {
+    SyntaxParser        = 'Sublime';
+    SyntaxFile          = 'syntax/Go.sublime-syntax';
+
+    color {
+        { 'Normal',        'Editor_Default' },
+        { 'Keyword',       'Editor_Keywords' },
+        { 'Number',        'Lang_DecimalNumber' },
+        { 'HexNumber',     'Lang_HexNumber' },
+        { 'FloatNumber',   'Lang_DecimalNumber' },
+        { 'Punctuation',   'Lang_Punctuation' },
+        { 'String',        'Lang_String' },
+        { 'Comment',       'Lang_Comment' },
+        { 'Function',      'Lang_Function' },
+        { 'Directive',     'Lang_Preprocessor' },
+        { 'Variable',      'Lang_Label' },
+        { 'Symbol',        'Lang_Function' },       # type names
+        { 'Special',       'Lang_String' },          # escape sequences
+    };
+}
+
+mode GO: SOURCE {
+    FileNameRx          = /\.\c{GO}$/;
+    HilitOn             = 1;
+    Colorizer           = 'GO';
+    AutoIndent          = 1;
+    IndentMode          = 'C';
+    MatchCase           = 1;
+    Trim                = 1;
+    MultiLineHilit      = 1;
+    AutoHilitParen      = 1;
+
+    SaveFolds           = 2;
+    CommentStart        = ' //';
+    CommentEnd          = '';
+    TabSize             = 4;
+}
+
+oinclude 'mym_go.fte';

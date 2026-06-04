@@ -305,6 +305,7 @@ static const OrdLookup event_string[] = {
 
 static const OrdLookup colorize_string[] = {
     COLORIZE_FLG(SyntaxParser),
+    COLORIZE_FLG(SyntaxFile),
     { 0, 0 },
 };
 
