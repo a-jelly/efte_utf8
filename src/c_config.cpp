@@ -82,7 +82,11 @@ static GUICharactersEntry *GUICharacters = NULL;
 char CvsCommand[256] = "cvs";
 char CvsLogMode[32] = "PLAIN";
 char SvnCommand[256] = "svn";
+char P4Command[256] = "p4";
+char GitCommand[256] = "git";
 char SvnLogMode[32] = "PLAIN";
+char P4LogMode[32] = "PLAIN";
+char GitLogMode[32] = "PLAIN";
 int ReassignModelIds = 0;
 int RecheckReadOnly = 0;
 char XShellCommand[256] = "xterm";
@@ -436,6 +440,18 @@ static int SetGlobalString(long what, const char *string) {
         break;
     case FLAG_SvnCommand:
         strlcpy(SvnCommand, string, sizeof(SvnCommand));
+        break;
+    case FLAG_P4Command:
+        strlcpy(P4Command, string, sizeof(P4Command));
+        break;
+    case FLAG_GitCommand:
+        strlcpy(GitCommand, string, sizeof(GitCommand));
+        break;
+    case FLAG_GitLogMode:
+        strlcpy(GitLogMode, string, sizeof(GitLogMode));
+        break;
+    case FLAG_P4LogMode:
+        strlcpy(P4LogMode, string, sizeof(P4LogMode));
         break;
     case FLAG_SvnLogMode:
         strlcpy(SvnLogMode, string, sizeof(SvnLogMode));
@@ -1130,6 +1146,18 @@ static int ReadObject(CurPos &cp, const char *ObjName) {
             if ((regexp = GetCharStr(cp, len)) == 0) return -1;
 
             if (AddSvnIgnoreRegexp(regexp) == 0) return -1;
+        }
+        break;
+
+        case CF_P4IGNRX: {
+            const char *regexp;
+
+            cpos++;
+
+            if (GetObj(cp, len) != CF_REGEXP) return -1;
+            if ((regexp = GetCharStr(cp, len)) == 0) return -1;
+
+            if (AddP4IgnoreRegexp(regexp) == 0) return -1;
         }
         break;
 

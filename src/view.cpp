@@ -211,6 +211,48 @@ int EView::ExecCommand(int Command, ExState &State) {
         return RunSvnCommit(State);
     case ExViewSvnLog:
         return ViewSvnLog(State);
+    case ExP4:
+        return P4(State);
+    case ExRunP4:
+        return RunP4(State);
+    case ExViewP4:
+        return ViewP4(State);
+    case ExClearP4Messages:
+        return ClearP4Messages(State);
+    case ExP4Diff:
+        return P4Diff(State);
+    case ExRunP4Diff:
+        return RunP4Diff(State);
+    case ExViewP4Diff:
+        return ViewP4Diff(State);
+    case ExP4Submit:
+        return P4Submit(State);
+    case ExRunP4Submit:
+        return RunP4Submit(State);
+    case ExViewP4Log:
+        return ViewP4Log(State);
+    case ExP4Edit:
+        return P4Edit(State);
+    case ExGit:
+        return Git(State);
+    case ExRunGit:
+        return RunGit(State);
+    case ExViewGit:
+        return ViewGit(State);
+    case ExClearGitMessages:
+        return ClearGitMessages(State);
+    case ExGitDiff:
+        return GitDiff(State);
+    case ExRunGitDiff:
+        return RunGitDiff(State);
+    case ExViewGitDiff:
+        return ViewGitDiff(State);
+    case ExGitCommit:
+        return GitCommit(State);
+    case ExRunGitCommit:
+        return RunGitCommit(State);
+    case ExViewGitLog:
+        return ViewGitLog(State);
     case ExViewBuffers:
         return ViewBuffers(State);
     case ExShowKey:
@@ -1275,5 +1317,427 @@ int EView::ViewSvnLog(ExState &/*State*/) {
         SwitchToModel(SvnLogView);
         return 1;
     }
+    return 0;
+}
+
+/* ---- P4 (Perforce) ---- */
+
+int EView::P4(ExState &State) {
+    static char Opts[128] = "";
+    char Options[128] = "";
+    if (P4View != 0 && P4View->Running) { Msg(S_INFO, "Already running..."); return 0; }
+    if (State.GetStrParam(this, Options, sizeof(Options)) == 0) {
+        if (MView->Win->GetStr("P4 options", sizeof(Opts), Opts, HIST_P4) == 0) return 0;
+        strcpy(Options, Opts);
+    } else {
+        if (MView->Win->GetStr("P4 options", sizeof(Options), Options, HIST_P4) == 0) return 0;
+    }
+    return P4(Options);
+}
+
+int EView::RunP4(ExState &State) {
+    char Options[128] = "";
+    if (P4View != 0 && P4View->Running) { Msg(S_INFO, "Already running..."); return 0; }
+    State.GetStrParam(this, Options, sizeof(Options));
+    return P4(Options);
+}
+
+int EView::P4(const char *Options) {
+    char Dir[MAXPATH] = "";
+    char Command[256] = "";
+    char buf[1024] = "";
+    char *OnFiles = buf;
+    EP4 *p4;
+
+    if (GetDefaultDirectory(Model, Dir, sizeof(Dir)) == 0) return 0;
+
+    strcpy(Command, P4Command);
+    strcat(Command, " ");
+    if (Options[0] != 0) {
+        strcat(Command, Options);
+        strcat(Command, " ");
+    }
+
+    switch (Model->GetContext()) {
+    case CONTEXT_FILE:
+        if (JustFileName(((EBuffer *)Model)->FileName, OnFiles, sizeof(buf)) != 0) return 0;
+        break;
+    case CONTEXT_P4DIFF:
+        OnFiles = strdup(P4DiffView->OnFiles);
+        break;
+    case CONTEXT_P4:
+        OnFiles = ((EP4 *)Model)->MarkedAsList();
+        if (!OnFiles) OnFiles = strdup(((EP4 *)Model)->OnFiles);
+        break;
+    }
+
+    if (P4View == 0) p4 = new EP4(0, &ActiveModel);
+    else p4 = P4View;
+    SwitchToModel(p4);
+    p4->RunPipe(Dir, Command, OnFiles);
+    if (OnFiles != buf) free(OnFiles);
+    return 1;
+}
+
+int EView::ClearP4Messages(ExState &/*State*/) {
+    if (P4View != 0) {
+        P4View->FreeLines();
+        P4View->UpdateList();
+        return 1;
+    }
+    return 0;
+}
+
+int EView::ViewP4(ExState &/*State*/) {
+    if (P4View != 0) {
+        SwitchToModel(P4View);
+        return 1;
+    }
+    return 0;
+}
+
+int EView::P4Diff(ExState &State) {
+    static char Opts[128] = "";
+    char Options[128] = "";
+    if (P4View != 0 && P4View->Running) { Msg(S_INFO, "Already running..."); return 0; }
+    if (State.GetStrParam(this, Options, sizeof(Options)) == 0) {
+        if (MView->Win->GetStr("P4 diff options", sizeof(Opts), Opts, HIST_P4DIFF) == 0) return 0;
+        strcpy(Options, Opts);
+    } else {
+        if (MView->Win->GetStr("P4 diff options", sizeof(Options), Options, HIST_P4DIFF) == 0) return 0;
+    }
+    return P4Diff(Options);
+}
+
+int EView::RunP4Diff(ExState &State) {
+    char Options[128] = "";
+    if (P4View != 0 && P4View->Running) { Msg(S_INFO, "Already running..."); return 0; }
+    State.GetStrParam(this, Options, sizeof(Options));
+    return P4Diff(Options);
+}
+
+int EView::P4Diff(const char *Options) {
+    char Dir[MAXPATH] = "";
+    char Command[256] = "";
+    char buf[1024] = "";
+    char *OnFiles = buf;
+
+    if (GetDefaultDirectory(Model, Dir, sizeof(Dir)) == 0) return 0;
+
+    strcpy(Command, P4Command);
+    strcat(Command, " diff -du ");
+    if (Options[0] != 0) {
+        strcat(Command, Options);
+        strcat(Command, " ");
+    }
+
+    switch (Model->GetContext()) {
+    case CONTEXT_FILE:
+        if (JustFileName(((EBuffer *)Model)->FileName, OnFiles, sizeof(buf)) != 0) return 0;
+        break;
+    case CONTEXT_P4DIFF:
+        OnFiles = strdup(P4DiffView->OnFiles);
+        break;
+    case CONTEXT_P4:
+        OnFiles = ((EP4 *)Model)->MarkedAsList();
+        if (!OnFiles) OnFiles = strdup(((EP4 *)Model)->OnFiles);
+        break;
+    }
+
+    EP4Diff *diffs;
+    if (P4DiffView != 0) {
+        diffs = P4DiffView;
+        SwitchToModel(diffs);
+        diffs->RunPipe(Dir, Command, OnFiles);
+    } else {
+        diffs = new EP4Diff(0, &ActiveModel, Dir, Command, OnFiles);
+    }
+    if (OnFiles != buf) free(OnFiles);
+    SwitchToModel(diffs);
+    return 1;
+}
+
+int EView::ViewP4Diff(ExState &/*State*/) {
+    if (P4DiffView != 0) {
+        SwitchToModel(P4DiffView);
+        return 1;
+    }
+    return 0;
+}
+
+int EView::P4Submit(ExState &State) {
+    static char Opts[128] = "";
+    char Options[128] = "";
+    if (P4View != 0 && P4View->Running) { Msg(S_INFO, "Already running..."); return 0; }
+    if (State.GetStrParam(this, Options, sizeof(Options)) == 0) {
+        if (MView->Win->GetStr("P4 submit options", sizeof(Opts), Opts, HIST_P4SUBMIT) == 0) return 0;
+        strcpy(Options, Opts);
+    } else {
+        if (MView->Win->GetStr("P4 submit options", sizeof(Options), Options, HIST_P4SUBMIT) == 0) return 0;
+    }
+    return P4Submit(Options);
+}
+
+int EView::RunP4Submit(ExState &State) {
+    char Options[128] = "";
+    if (P4View != 0 && P4View->Running) { Msg(S_INFO, "Already running..."); return 0; }
+    State.GetStrParam(this, Options, sizeof(Options));
+    return P4Submit(Options);
+}
+
+int EView::P4Submit(const char *Options) {
+    char Dir[MAXPATH] = "";
+    char Command[256] = "";
+    char buf[1024] = "";
+    char *OnFiles = buf;
+    EP4 *p4;
+
+    if (GetDefaultDirectory(Model, Dir, sizeof(Dir)) == 0) return 0;
+
+    strcpy(Command, P4Command);
+    strcat(Command, " submit ");
+    if (Options[0] != 0) {
+        strcat(Command, Options);
+        strcat(Command, " ");
+    }
+
+    switch (Model->GetContext()) {
+    case CONTEXT_FILE:
+        if (JustFileName(((EBuffer *)Model)->FileName, OnFiles, sizeof(buf)) != 0) return 0;
+        break;
+    case CONTEXT_P4DIFF:
+        OnFiles = strdup(P4DiffView->OnFiles);
+        break;
+    case CONTEXT_P4:
+        OnFiles = ((EP4 *)Model)->MarkedAsList();
+        if (!OnFiles) OnFiles = strdup(((EP4 *)Model)->OnFiles);
+        break;
+    }
+
+    if (P4View == 0) p4 = new EP4(0, &ActiveModel);
+    else p4 = P4View;
+    SwitchToModel(p4);
+    p4->RunCommit(Dir, Command, OnFiles);
+    if (OnFiles != buf) free(OnFiles);
+    return 1;
+}
+
+int EView::ViewP4Log(ExState &/*State*/) {
+    if (P4LogView != 0) {
+        SwitchToModel(P4LogView);
+        return 1;
+    }
+    return 0;
+}
+
+int EView::P4Edit(ExState &/*State*/) {
+    char Dir[MAXPATH] = "";
+    char Command[256] = "";
+    char buf[1024] = "";
+    char *OnFiles = buf;
+
+    if (GetDefaultDirectory(Model, Dir, sizeof(Dir)) == 0) return 0;
+
+    strcpy(Command, P4Command);
+    strcat(Command, " edit ");
+
+    if (Model->GetContext() == CONTEXT_FILE) {
+        if (JustFileName(((EBuffer *)Model)->FileName, OnFiles, sizeof(buf)) != 0) return 0;
+    } else if (Model->GetContext() == CONTEXT_P4) {
+        OnFiles = ((EP4 *)Model)->MarkedAsList();
+        if (!OnFiles) OnFiles = strdup(((EP4 *)Model)->OnFiles);
+    }
+
+    if (P4View == 0) {
+        EP4 *p4 = new EP4(0, &ActiveModel);
+        SwitchToModel(p4);
+        p4->RunPipe(Dir, Command, OnFiles);
+    } else {
+        SwitchToModel(P4View);
+        P4View->RunPipe(Dir, Command, OnFiles);
+    }
+    if (OnFiles != buf) free(OnFiles);
+    return 1;
+}
+
+/* ---- Git ---- */
+
+int EView::Git(ExState &State) {
+    static char Opts[128] = "";
+    char Options[128] = "";
+    if (GitView != 0 && GitView->Running) { Msg(S_INFO, "Already running..."); return 0; }
+    if (State.GetStrParam(this, Options, sizeof(Options)) == 0) {
+        if (MView->Win->GetStr("Git options", sizeof(Opts), Opts, HIST_GIT) == 0) return 0;
+        strcpy(Options, Opts);
+    } else {
+        if (MView->Win->GetStr("Git options", sizeof(Options), Options, HIST_GIT) == 0) return 0;
+    }
+    return Git(Options);
+}
+
+int EView::RunGit(ExState &State) {
+    char Options[128] = "";
+    if (GitView != 0 && GitView->Running) { Msg(S_INFO, "Already running..."); return 0; }
+    State.GetStrParam(this, Options, sizeof(Options));
+    return Git(Options);
+}
+
+int EView::Git(const char *Options) {
+    char Dir[MAXPATH] = "";
+    char Command[256] = "";
+    char buf[1024] = "";
+    char *OnFiles = buf;
+
+
+    strcpy(Command, GitCommand);
+    strcat(Command, " ");
+    if (Options[0] != 0) { strcat(Command, Options); strcat(Command, " "); }
+
+    switch (Model->GetContext()) {
+    case CONTEXT_FILE:
+        if (JustFileName(((EBuffer *)Model)->FileName, OnFiles, sizeof(buf)) != 0) return 0;
+        break;
+    case CONTEXT_GITDIFF:
+        OnFiles = strdup(GitDiffView->OnFiles);
+        break;
+    case CONTEXT_GIT:
+        OnFiles = ((EGit *)Model)->MarkedAsList();
+        if (!OnFiles) OnFiles = strdup(((EGit *)Model)->OnFiles);
+        break;
+    }
+
+    EGit *git;
+    if (GitView == 0) git = new EGit(0, &ActiveModel);
+    else git = GitView;
+    SwitchToModel(git);
+    git->RunPipe(Dir, Command, OnFiles);
+    if (OnFiles != buf) free(OnFiles);
+    return 1;
+}
+
+int EView::ClearGitMessages(ExState &/*State*/) {
+    if (GitView != 0) { GitView->FreeLines(); GitView->UpdateList(); return 1; }
+    return 0;
+}
+
+int EView::ViewGit(ExState &/*State*/) {
+    if (GitView != 0) { SwitchToModel(GitView); return 1; }
+    return 0;
+}
+
+int EView::GitDiff(ExState &State) {
+    static char Opts[128] = "";
+    char Options[128] = "";
+    if (GitView != 0 && GitView->Running) { Msg(S_INFO, "Already running..."); return 0; }
+    if (State.GetStrParam(this, Options, sizeof(Options)) == 0) {
+        if (MView->Win->GetStr("Git diff options", sizeof(Opts), Opts, HIST_GITDIFF) == 0) return 0;
+        strcpy(Options, Opts);
+    } else {
+        if (MView->Win->GetStr("Git diff options", sizeof(Options), Options, HIST_GITDIFF) == 0) return 0;
+    }
+    return GitDiff(Options);
+}
+
+int EView::RunGitDiff(ExState &State) {
+    char Options[128] = "";
+    if (GitView != 0 && GitView->Running) { Msg(S_INFO, "Already running..."); return 0; }
+    State.GetStrParam(this, Options, sizeof(Options));
+    return GitDiff(Options);
+}
+
+int EView::GitDiff(const char *Options) {
+    char Dir[MAXPATH] = "";
+    char Command[256] = "";
+    char buf[1024] = "";
+    char *OnFiles = buf;
+
+    if (GetDefaultDirectory(Model, Dir, sizeof(Dir)) == 0) return 0;
+
+    strcpy(Command, GitCommand);
+    strcat(Command, " diff ");
+    if (Options[0] != 0) { strcat(Command, Options); strcat(Command, " "); }
+
+    switch (Model->GetContext()) {
+    case CONTEXT_FILE:
+        if (JustFileName(((EBuffer *)Model)->FileName, OnFiles, sizeof(buf)) != 0) return 0;
+        break;
+    case CONTEXT_GITDIFF:
+        OnFiles = strdup(GitDiffView->OnFiles);
+        break;
+    case CONTEXT_GIT:
+        OnFiles = ((EGit *)Model)->MarkedAsList();
+        if (!OnFiles) OnFiles = strdup(((EGit *)Model)->OnFiles);
+        break;
+    }
+
+    EGitDiff *diffs;
+    if (GitDiffView != 0) { diffs = GitDiffView; SwitchToModel(diffs); diffs->RunPipe(Dir, Command, OnFiles); }
+    else diffs = new EGitDiff(0, &ActiveModel, Dir, Command, OnFiles);
+    if (OnFiles != buf) free(OnFiles);
+    SwitchToModel(diffs);
+    return 1;
+}
+
+int EView::ViewGitDiff(ExState &/*State*/) {
+    if (GitDiffView != 0) { SwitchToModel(GitDiffView); return 1; }
+    return 0;
+}
+
+int EView::GitCommit(ExState &State) {
+    static char Opts[128] = "";
+    char Options[128] = "";
+    if (GitView != 0 && GitView->Running) { Msg(S_INFO, "Already running..."); return 0; }
+    if (State.GetStrParam(this, Options, sizeof(Options)) == 0) {
+        if (MView->Win->GetStr("Git commit options", sizeof(Opts), Opts, HIST_GITCOMMIT) == 0) return 0;
+        strcpy(Options, Opts);
+    } else {
+        if (MView->Win->GetStr("Git commit options", sizeof(Options), Options, HIST_GITCOMMIT) == 0) return 0;
+    }
+    return GitCommit(Options);
+}
+
+int EView::RunGitCommit(ExState &State) {
+    char Options[128] = "";
+    if (GitView != 0 && GitView->Running) { Msg(S_INFO, "Already running..."); return 0; }
+    State.GetStrParam(this, Options, sizeof(Options));
+    return GitCommit(Options);
+}
+
+int EView::GitCommit(const char *Options) {
+    char Dir[MAXPATH] = "";
+    char Command[256] = "";
+    char buf[1024] = "";
+    char *OnFiles = buf;
+
+    if (GetDefaultDirectory(Model, Dir, sizeof(Dir)) == 0) return 0;
+
+    strcpy(Command, GitCommand);
+    strcat(Command, " commit ");
+    if (Options[0] != 0) { strcat(Command, Options); strcat(Command, " "); }
+
+    switch (Model->GetContext()) {
+    case CONTEXT_FILE:
+        if (JustFileName(((EBuffer *)Model)->FileName, OnFiles, sizeof(buf)) != 0) return 0;
+        break;
+    case CONTEXT_GITDIFF:
+        OnFiles = strdup(GitDiffView->OnFiles);
+        break;
+    case CONTEXT_GIT:
+        OnFiles = ((EGit *)Model)->MarkedAsList();
+        if (!OnFiles) OnFiles = strdup(((EGit *)Model)->OnFiles);
+        break;
+    }
+
+    EGit *git;
+    if (GitView == 0) git = new EGit(0, &ActiveModel);
+    else git = GitView;
+    SwitchToModel(git);
+    git->RunCommit(Dir, Command, OnFiles);
+    if (OnFiles != buf) free(OnFiles);
+    return 1;
+}
+
+int EView::ViewGitLog(ExState &/*State*/) {
+    if (GitLogView != 0) { SwitchToModel(GitLogView); return 1; }
     return 0;
 }

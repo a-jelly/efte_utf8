@@ -80,5 +80,11 @@ int StoreBookmarks(EBuffer *buf);
 #define HIST_SVN       15
 #define HIST_SVNDIFF   16
 #define HIST_SVNCOMMIT 17
+#define HIST_P4        18
+#define HIST_P4DIFF    19
+#define HIST_P4SUBMIT  20
+#define HIST_GIT       21
+#define HIST_GITDIFF   22
+#define HIST_GITCOMMIT 23
 
 #endif

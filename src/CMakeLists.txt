@@ -64,6 +64,8 @@ SET( BASE_FTE_SOURCES
   o_buffer.cpp o_buflist.cpp o_cvs.cpp o_cvsbase.cpp o_cvsdiff.cpp o_directory.cpp
   o_list.cpp o_messages.cpp o_model.cpp o_modemap.cpp o_routine.cpp o_svn.cpp
   o_svnbase.cpp o_svndiff.cpp s_direct.cpp s_files.cpp s_string.cpp
+  o_p4base.cpp o_p4.cpp o_p4diff.cpp e_p4log.cpp
+  o_gitbase.cpp o_git.cpp o_gitdiff.cpp e_gitlog.cpp
   s_util.cpp view.cpp utf8.cpp ${CMAKE_CURRENT_BINARY_DIR}/defcfg.h )
 SET( UNIX_SOURCES e_unix.cpp memicmp.cpp )
 SET( XFTE_SOURCES clip_x11.cpp con_i18n.cpp con_x11.cpp g_nodlg.cpp g_text.cpp
@@ -142,6 +144,7 @@ INCLUDE_DIRECTORIES("${CMAKE_CURRENT_BINARY_DIR}")
 # PLATFORM INDEPENDENT BUILDS
 #
 # =============================================================================
+
 # ---------------------------------------------------------------------------
 # Sublime-syntax highlight engine (h_sublime.cpp) needs PCRE2 (8-bit) + libyaml.
 # (Linux / BSD targets; on Arch: pacman -S pcre2 libyaml)

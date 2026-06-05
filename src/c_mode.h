@@ -31,6 +31,12 @@
 #define CONTEXT_SVNBASE  15
 #define CONTEXT_SVN      16
 #define CONTEXT_SVNDIFF  17
+#define CONTEXT_P4BASE  18
+#define CONTEXT_P4      19
+#define CONTEXT_P4DIFF  20
+#define CONTEXT_GITBASE 21
+#define CONTEXT_GIT     22
+#define CONTEXT_GITDIFF 23
 
 //typedef unsigned char ChColor;
 typedef int ChColor;
@@ -210,6 +216,10 @@ extern EBufferFlags DefaultBufferFlags;
 #define FLAG_CursorBlink        63
 #define FLAG_SvnCommand         64
 #define FLAG_SvnLogMode         65
+#define FLAG_P4Command          71
+#define FLAG_P4LogMode          72
+#define FLAG_GitCommand         73
+#define FLAG_GitLogMode         74
 #define FLAG_CursorWithinEOL    66
 #define FLAG_CursorInsertMask   67
 #define FLAG_CursorOverMask     68

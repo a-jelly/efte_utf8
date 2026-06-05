@@ -170,6 +170,35 @@ public:
     int RunSvnCommit(ExState &State);
     int SvnCommit(const char *Options);
     int ViewSvnLog(ExState &State);
+
+    int P4(ExState &State);
+    int RunP4(ExState &State);
+    int ViewP4(ExState &State);
+    int P4(const char *Options);
+    int ClearP4Messages(ExState &State);
+    int P4Diff(ExState &State);
+    int RunP4Diff(ExState &State);
+    int ViewP4Diff(ExState &State);
+    int P4Diff(const char *Options);
+    int P4Submit(ExState &State);
+    int RunP4Submit(ExState &State);
+    int P4Submit(const char *Options);
+    int ViewP4Log(ExState &State);
+    int P4Edit(ExState &State);
+
+    int Git(ExState &State);
+    int RunGit(ExState &State);
+    int ViewGit(ExState &State);
+    int Git(const char *Options);
+    int ClearGitMessages(ExState &State);
+    int GitDiff(ExState &State);
+    int RunGitDiff(ExState &State);
+    int ViewGitDiff(ExState &State);
+    int GitDiff(const char *Options);
+    int GitCommit(ExState &State);
+    int RunGitCommit(ExState &State);
+    int GitCommit(const char *Options);
+    int ViewGitLog(ExState &State);
     int DirOpen(ExState &State);
     int OpenDir(const char *Directory);
     int ShowVersion();

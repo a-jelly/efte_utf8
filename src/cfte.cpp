@@ -69,6 +69,7 @@ static void Fail(CurPos &cp, const char *s, ...) {
     va_end(ap);
 
     fprintf(stderr, "%s:%d: Error: %s\n", cp.name, cp.line, msgbuf);
+    fprintf(stderr, "  (last word in parse context: see debug lines above)\n");
     fprintf(stderr, "Use: efte -! -l%i %s to repair error\n", cp.line, cp.name);
     cleanup(1);
 }
@@ -291,6 +292,10 @@ static const OrdLookup global_string[] = {
     MODE_FLG(CvsLogMode),
     MODE_FLG(SvnCommand),
     MODE_FLG(SvnLogMode),
+    MODE_FLG(P4Command),
+    MODE_FLG(P4LogMode),
+    MODE_FLG(GitCommand),
+    MODE_FLG(GitLogMode),
     MODE_FLG(XShellCommand),
     MODE_FLG(RGBColor),
     MODE_FLG(BackupDirectory),
@@ -391,6 +396,8 @@ static int Lookup(const OrdLookup *where, const char *what) {
 #define K_COLPALETTE   21
 #define K_CVSIGNRX     22
 #define K_SVNIGNRX     23
+#define K_P4IGNRX      25
+#define K_GITIGNRX     26
 #define K_OINCLUDE     24   // Optional include, i.e. do not fail if it does not exist.
 
 typedef char Word[64];
@@ -420,6 +427,8 @@ static const OrdLookup CfgKW[] = {
     { "submenucond",   K_SUBMENUCOND },
     { "CvsIgnoreRx",   K_CVSIGNRX },
     { "SvnIgnoreRx",   K_SVNIGNRX },
+    { "P4IgnoreRx",    K_P4IGNRX },
+    { "GitIgnoreRx",   K_GITIGNRX },
     { 0, 0 },
 };
 
@@ -1403,13 +1412,15 @@ static int ParseConfigFile(CurPos &cp) {
 
                 PutString(cp, CF_OBJECT, ObjName);
 
+                // fprintf(stderr, "DEBUG: entering object '%s'\n", ObjName);
                 while (1) {
                     p = Parse(cp);
                     if (p == P_CLOSEBRACE) break;
                     if (p == P_EOF) Fail(cp, "Unexpected EOF");
-                    if (p != P_WORD) Fail(cp, "Syntax error");
+                    if (p != P_WORD) Fail(cp, "Syntax error (expected keyword, got token type %d at line %d)", p, cp.line);
 
                     if (GetWord(cp, w) != 0) Fail(cp, "Parse failed");
+                    // fprintf(stderr, "DEBUG [%s:%d] keyword='%'", cp.name, cp.line, w, Lookup(CfgKW, w));
                     switch (Lookup(CfgKW, w)) {
                     case K_COLOR: // mode::color
                         if (Parse(cp) != P_OPENBRACE) Fail(cp, "'{' expected");
@@ -1506,7 +1517,35 @@ static int ParseConfigFile(CurPos &cp) {
                         GetOp(cp, P_EOS);
                     }
                     break;
+                    case K_P4IGNRX: {
+                        char *regexp;
+
+                        if (Parse(cp) != P_ASSIGN) Fail(cp, "'=' expected");
+                        GetOp(cp, P_ASSIGN);
+                        if (Parse(cp) != P_STRING) Fail(cp, "String expected");
+                        regexp = GetString(cp);
+                        PutNull(cp, CF_P4IGNRX);
+                        PutString(cp, CF_REGEXP, regexp);
+                        if (Parse(cp) != P_EOS) Fail(cp, "';' expected");
+                        GetOp(cp, P_EOS);
+                    }
+                    break;
+
+                    case K_GITIGNRX: {
+                        char *regexp;
+
+                        if (Parse(cp) != P_ASSIGN) Fail(cp, "'=' expected");
+                        GetOp(cp, P_ASSIGN);
+                        if (Parse(cp) != P_STRING) Fail(cp, "String expected");
+                        regexp = GetString(cp);
+                        PutNull(cp, CF_GITIGNRX);
+                        PutString(cp, CF_REGEXP, regexp);
+                        if (Parse(cp) != P_EOS) Fail(cp, "';' expected");
+                        GetOp(cp, P_EOS);
+                    }
+                    break;
                     default:  // mode::
+                        // fprintf(stderr, "DEBUG [%s:%d] default handler for '%s': global_num=%d global_string=%d\n", cp.name, cp.line, w, Lookup(global_num, w), Lookup(global_string, w));
                         if (Parse(cp) != P_ASSIGN) Fail(cp, "'=' expected");
                         GetOp(cp, P_ASSIGN);
 
