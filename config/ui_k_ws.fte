@@ -99,6 +99,30 @@ eventmap SVN: MLIST {
     LocalMenu = "MSvn";
 }
 
+eventmap P4BASE: MLIST {
+}
+
+eventmap P4DIFF: MLIST {
+    key     [C+G-Ins]   { BlockCopy }
+    key         [Esc]   { FileClose }
+}
+
+eventmap P4: MLIST {
+    LocalMenu = "MP4";
+}
+
+eventmap GITBASE: MLIST {
+}
+
+eventmap GITDIFF: MLIST {
+    key     [C+G-Ins]   { BlockCopy }
+    key         [Esc]   { FileClose }
+}
+
+eventmap GIT: MLIST {
+    LocalMenu = "MGit";
+}
+
 eventmap DIRECTORY: MLIST {
     MainMenu = 'DirectoryMain';
     LocalMenu = 'DirectoryLocal';

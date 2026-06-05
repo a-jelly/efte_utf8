@@ -46,6 +46,8 @@ object GLOBAL {
 
     CvsCommand          = 'cvs';
     SvnCommand          = 'svn';
+    P4Command           = 'p4';
+    GitCommand          = 'git';
 %if(OS_UNIX)
     HelpCommand         = "man";
 %endif
@@ -135,4 +137,6 @@ object GLOBAL {
     CvsIgnoreRx = /^cvs server: Updating /;
     SvnIgnoreRx = /^svn update: Updating /;
     SvnIgnoreRx = /^svn server: Updating /;
+    P4IgnoreRx = /^exit: /;
+    P4IgnoreRx = /^p4 .*file.s. up to date/;
 }

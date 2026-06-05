@@ -48,6 +48,44 @@ menu MSvn {
     item "Cl&ear SVN messages" { ClearSvnMessages }
 }
 
+menu MP4 {
+    item "P4 &Opened"  { RunP4 "opened" }
+    item "P4 &Sync"    { RunP4 "sync" }
+    item "P4 &Diff"    { P4Diff "" }
+    item "P4 S&ubmit"  { RunP4Submit "" }
+    item "P4 &Add"     { RunP4 "add" }
+    item "P4 &Edit"    { P4Edit }
+    item "P4 &Revert"  { RunP4 "revert" }
+    item "P4 De&lete"  { RunP4 "delete" }
+    item "P4 S&tatus"  { RunP4 "status" }
+    item "&P4"         { P4 }
+    item;
+    item "&View P4"      { ViewP4 }
+    item "View P4 Di&ff" { ViewP4Diff }
+    item "View P4 &log"  { ViewP4Log }
+    item;
+    item "Cl&ear P4 messages" { ClearP4Messages }
+}
+
+menu MGit {
+    item "Git S&tatus"   { RunGit "status --porcelain" }
+    item "Git &Pull"     { RunGit "pull" }
+    item "Git Pu&sh"     { RunGit "push" }
+    item "Git &Diff"     { GitDiff "" }
+    item "Git &Commit"   { RunGitCommit "" }
+    item "Git &Add"      { RunGit "add" }
+    item "Git &Reset"    { RunGit "reset HEAD" }
+    item "Git Re&vert"   { RunGit "checkout --" }
+    item "Git &Log"      { RunGit "log --oneline -20" }
+    item "Gi&t"          { Git }
+    item;
+    item "&View Git"       { ViewGit }
+    item "View Git Di&ff"  { ViewGitDiff }
+    item "View Git Lo&g"   { ViewGitLog }
+    item;
+    item "Cl&ear Git messages" { ClearGitMessages }
+}
+
 menu Tools {
     item "&Compile\tF9" { Compile "make -k " }
     item "&Grep" { Compile "grep -n " }
@@ -60,6 +98,8 @@ menu Tools {
     item;
     submenu "C&VS\tC+O_C+V", MCvs;
     submenu "SV&N\tC+O_C+N", MSvn;
+    submenu "&P4\tC+O_C+P", MP4;
+    submenu "&Git\tC+O_C+G", MGit;
 }
 
 menu Window {
