@@ -1068,7 +1068,50 @@ int EBuffer::JoinLine(int Row, int Col) {
     if (Col == 0 && RLine(Row)->Count == 0) {
         if (DelLine(Row, 1) == 0) return 0;
     } else {
-        if (InsText(Row, Col, RLine(Row + 1)->Count, RLine(Row + 1)->Chars, 0) == 0) return 0;
+        PELine NextL = RLine(Row + 1);
+        const char *src = NextL->Chars;
+        int srcLen = NextL->Count;
+        int TabSize = BFI(this, BFI_TabSize);
+
+        /* Expand tabs to spaces before inserting — tabs in the middle
+         * of a line (after join) don't align to meaningful tab stops */
+        int hasTabs = 0;
+        for (int k = 0; k < srcLen; k++)
+            if (src[k] == '\t') { hasTabs = 1; break; }
+
+        if (hasTabs) {
+            /* Compute expanded size */
+            int expLen = 0, col = 0;
+            for (int k = 0; k < srcLen; k++) {
+                if (src[k] == '\t') {
+                    int next = ((col / TabSize) + 1) * TabSize;
+                    expLen += next - col;
+                    col = next;
+                } else {
+                    expLen++;
+                    col++;
+                }
+            }
+            char *expBuf = (char *)malloc(expLen);
+            int pos = 0;
+            col = 0;
+            for (int k = 0; k < srcLen; k++) {
+                if (src[k] == '\t') {
+                    int next = ((col / TabSize) + 1) * TabSize;
+                    int pad = next - col;
+                    memset(expBuf + pos, ' ', pad);
+                    pos += pad;
+                    col = next;
+                } else {
+                    expBuf[pos++] = src[k];
+                    col++;
+                }
+            }
+            if (InsText(Row, Col, expLen, expBuf, 0) == 0) { free(expBuf); return 0; }
+            free(expBuf);
+        } else {
+            if (InsText(Row, Col, srcLen, src, 0) == 0) return 0;
+        }
         if (DelLine(Row + 1, 0) == 0) return 0;
         UpdateMarker(umJoinLine, Row, Col, 0, 0);
     }
