@@ -20,8 +20,8 @@
 #include <signal.h>
 
 int EView::SysShowHelp(ExState &State, const char *word) {
-    char options[128] = "";
-    char command[1024];
+    char options[256] = "";
+    char command[2048];
     char file[MAXPATH];
 
     if (State.GetStrParam(this, options, sizeof(options) - 1) == 0)
