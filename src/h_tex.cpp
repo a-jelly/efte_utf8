@@ -53,8 +53,8 @@ int Hilit_TEX(EBuffer *BF, int /*LN*/, PCell B, int Pos, int Width, ELine *Line,
                     }
                     if (StateMap)
                         memset(StateMap + i, State, j);
-                    if (B)
-                        C += MoveMem(B, C - Pos, Width, Line->Chars + i, HILIT_CLRD(), j);
+                    if (B) MoveMem(B, C - Pos, Width, Line->Chars + i, HILIT_CLRD(), j);
+                    C += j;
                     i += j;
                     len -= j;
                     p += j;

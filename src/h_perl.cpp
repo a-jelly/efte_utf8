@@ -305,8 +305,8 @@ int Hilit_PERL(EBuffer *BF, int /*LN*/, PCell B, int Pos, int Width, ELine *Line
                     }
                     if (StateMap)
                         memset(StateMap + i, State & X_MASK, j);
-                    if (B)
-                        C += MoveMem(B, C - Pos, Width, Line->Chars + i, HILIT_CLRD(), j);
+                    if (B) MoveMem(B, C - Pos, Width, Line->Chars + i, HILIT_CLRD(), j);
+                    C += j;
                     i += j;
                     len -= j;
                     p += j;

@@ -80,8 +80,8 @@ set_normal:
                     }
                     if (StateMap)
                         memset(StateMap + i, State, j);
-                    if (B)
-                        C += MoveMem(B, C - Pos, Width, Line->Chars + i, HILIT_CLRD(), j);
+                    if (B) MoveMem(B, C - Pos, Width, Line->Chars + i, HILIT_CLRD(), j);
+                    C += j;
                     if (State == hsREXX_Keyword)
                         if (strnicmp(Line->Chars + i, "CALL", 4) == 0)
                             wascall = 1;

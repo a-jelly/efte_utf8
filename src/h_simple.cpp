@@ -220,8 +220,8 @@ next_trans: /* */
 
                     if (StateMap)
                         memset(StateMap + i, MState, j);
-                    if (B)
-                        C += MoveMem(B, C - Pos, Width, Line->Chars + i, HILIT_CLRD(), j);
+                    if (B) MoveMem(B, C - Pos, Width, Line->Chars + i, HILIT_CLRD(), j);
+                    C += j;
                     i += j;
                     len -= j;
                     p += j;
