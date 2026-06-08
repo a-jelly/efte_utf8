@@ -52,10 +52,15 @@ int Hilit_SH(EBuffer *BF, int /*LN*/, PCell B, int Pos, int Width, ELine *Line, 
                 else if (State == hsSH_Comment) Color = CLR_Comment;
                 
                 j = ulen;
+
+                /* Compute visual width (1 for most chars, 2 for CJK) */
+                int _bc;
+                unsigned long _cp = utf8_decode(p, &_bc);
+                int vw = utf8_codepoint_width(_cp);
                 
                 if (StateMap) memset(StateMap + i, State, j);
                 if (B) MoveMem(B, C - Pos, Width, p, HILIT_CLRD(), j);
-                C += j;
+                C += vw;
                 i += j;
                 len -= j;
                 p += j;
