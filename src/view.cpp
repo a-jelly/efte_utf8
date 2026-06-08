@@ -1588,6 +1588,7 @@ int EView::Git(const char *Options) {
     char buf[1024] = "";
     char *OnFiles = buf;
 
+    if (GetDefaultDirectory(Model, Dir, sizeof(Dir)) == 0) return 0;
 
     strcpy(Command, GitCommand); strcat(Command, " -C "); strcat(Command, Dir);
     strcat(Command, " ");
