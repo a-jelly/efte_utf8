@@ -1584,12 +1584,12 @@ int EView::RunGit(ExState &State) {
 
 int EView::Git(const char *Options) {
     char Dir[MAXPATH] = "";
-    char Command[256] = "";
+    char Command[MAXPATH + 256] = "";
     char buf[1024] = "";
     char *OnFiles = buf;
 
 
-    strcpy(Command, GitCommand);
+    strcpy(Command, GitCommand); strcat(Command, " -C "); strcat(Command, Dir);
     strcat(Command, " ");
     if (Options[0] != 0) { strcat(Command, Options); strcat(Command, " "); }
 
@@ -1647,13 +1647,13 @@ int EView::RunGitDiff(ExState &State) {
 
 int EView::GitDiff(const char *Options) {
     char Dir[MAXPATH] = "";
-    char Command[256] = "";
+    char Command[MAXPATH + 256] = "";
     char buf[1024] = "";
     char *OnFiles = buf;
 
     if (GetDefaultDirectory(Model, Dir, sizeof(Dir)) == 0) return 0;
 
-    strcpy(Command, GitCommand);
+    strcpy(Command, GitCommand); strcat(Command, " -C "); strcat(Command, Dir);
     strcat(Command, " diff ");
     if (Options[0] != 0) { strcat(Command, Options); strcat(Command, " "); }
 
@@ -1705,13 +1705,13 @@ int EView::RunGitCommit(ExState &State) {
 
 int EView::GitCommit(const char *Options) {
     char Dir[MAXPATH] = "";
-    char Command[256] = "";
+    char Command[MAXPATH + 256] = "";
     char buf[1024] = "";
     char *OnFiles = buf;
 
     if (GetDefaultDirectory(Model, Dir, sizeof(Dir)) == 0) return 0;
 
-    strcpy(Command, GitCommand);
+    strcpy(Command, GitCommand); strcat(Command, " -C "); strcat(Command, Dir);
     strcat(Command, " commit ");
     if (Options[0] != 0) { strcat(Command, Options); strcat(Command, " "); }
 
