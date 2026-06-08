@@ -167,7 +167,7 @@ void ExISearch::UpdateStatus() {
 
 void ExISearch::RepaintStatus() {
     TDrawBuffer B;
-    char s[MAXISEARCH + 1];
+    char s[MAXISEARCH*2 + 1];
     const char *p;
     int W, H;
 
@@ -189,7 +189,7 @@ void ExISearch::RepaintStatus() {
         break;
     }
 
-    sprintf(s, "ISearch [%s]%s", ISearchStr, p);
+    snprintf(s, sizeof(s), "ISearch [%s]%s", ISearchStr, p);
     MoveCh(B, ' ', 0x17, W);
     MoveStr(B, 0, W, s, 0x17, W);
     ConPutBox(0, H - 1, W, 1, B);

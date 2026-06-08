@@ -626,16 +626,16 @@ void ExInput::RepaintStatus() {
     int vPos = 0, vLPos = 0, vSelStart = 0, vSelEnd = 0;
     
     // Считаем реальные символы (игнорируя байты продолжения UTF-8)
-    for (int i = 0; i < Pos; i++)      
+    for (unsigned int i = 0; i < Pos; i++)      
         if (((unsigned char)Line[i] & 0xC0) != 0x80) vPos++;
         
-    for (int i = 0; i < LPos; i++)     
+    for (unsigned int i = 0; i < LPos; i++)     
         if (((unsigned char)Line[i] & 0xC0) != 0x80) vLPos++;
         
-    for (int i = 0; i < SelStart; i++) 
+    for (unsigned int i = 0; i < SelStart; i++) 
         if (((unsigned char)Line[i] & 0xC0) != 0x80) vSelStart++;
         
-    for (int i = 0; i < SelEnd; i++)   
+    for (unsigned int i = 0; i < SelEnd; i++)   
         if (((unsigned char)Line[i] & 0xC0) != 0x80) vSelEnd++;
 
     // Скроллинг строки ввода теперь работает по визуальным колонкам

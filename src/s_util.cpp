@@ -49,14 +49,14 @@ char *MakeBackup(const char *FileName, char *NewName) {
     /* try 1 */
     if (strlen(BackupDirectory) > 0) {
 		char TmpFileName[MAXPATH];
-		char TmpBackupName[MAXPATH];
+		char TmpBackupName[MAXPATH * 2];
 
 		strcpy(TmpFileName, FileName);
 
         for (size_t idx=0; idx < strlen(TmpFileName); idx++)
             if (TmpFileName[idx] == '/' || TmpFileName[idx] == '\\' || TmpFileName[idx] == ':')
                 TmpFileName[idx] = '_';
-        snprintf(TmpBackupName, MAXPATH, "%s/%s", BackupDirectory, TmpFileName);
+        snprintf(TmpBackupName, sizeof(TmpBackupName), "%s/%s", BackupDirectory, TmpFileName);
 		ExpandPath(TmpBackupName, NewName, MAXPATH);
     } else
         snprintf(NewName, MAXPATH, "%s~", FileName);

@@ -1022,7 +1022,7 @@ int EBuffer::MoveToLine(ExState &State) {
     int No = 0;
 
     if (State.GetIntParam(View, &No) == 0) {
-        char Num[10];
+        char Num[16];
 
         sprintf(Num, "%d", VToR(CP.Row) + 1);
         if (View->MView->Win->GetStr("Goto Line", sizeof(Num), Num, HIST_POSITION) == 0)
@@ -1040,7 +1040,7 @@ int EBuffer::MoveToColumn(ExState &State) {
     int No = 0;
 
     if (State.GetIntParam(View, &No) == 0) {
-        char Num[10];
+        char Num[16];
 
         sprintf(Num, "%d", CP.Col + 1);
         if (View->MView->Win->GetStr("Goto Column", 8, Num, HIST_POSITION) == 0) return 0;
@@ -1574,7 +1574,7 @@ int EBuffer::ChangeTabSize(ExState &State) {
     int No;
 
     if (State.GetIntParam(View, &No) == 0) {
-        char Num[10];
+        char Num[16];
 
         sprintf(Num, "%d", BFI(this, BFI_TabSize));
         if (View->MView->Win->GetStr("TabSize", sizeof(Num), Num, HIST_SETUP) == 0) return 0;
@@ -1596,7 +1596,7 @@ int EBuffer::SetIndentWithTabs(ExState &State) {
 }
 
 int EBuffer::ChangeRightMargin(ExState &State) {
-    char Num[10];
+    char Num[16];
     int No;
 
     if (State.GetIntParam(View, &No) == 0) {
@@ -1611,7 +1611,7 @@ int EBuffer::ChangeRightMargin(ExState &State) {
 }
 
 int EBuffer::ChangeLeftMargin(ExState &State) {
-    char Num[10];
+    char Num[16];
     int No;
 
     if (State.GetIntParam(View, &No) == 0) {

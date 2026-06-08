@@ -154,6 +154,7 @@ int ConInit(int /*XSize*/, int /*YSize*/) {
     int tmp;
     int mode;
     struct termios newt;
+    memset(&newt, 0, sizeof(newt));
     //char ttyname[20];
     char vcsname[20];
 //    struct vt_mode vtm;
@@ -320,6 +321,7 @@ int ConContinue() {
     Gpm_Connect conn;
 #endif
     struct termios newt;
+    memset(&newt, 0, sizeof(newt));
     int tmp;
 
     newt.c_lflag &= ~(ICANON | ECHO | ISIG);

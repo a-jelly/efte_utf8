@@ -51,7 +51,7 @@ void EDirectory::DrawLine(PCell B, int Line, int Col, ChColor color, int Width) 
         struct tm *t;
         time_t tim;
         off_t Size = Files[Line]->Size();
-        char SizeStr[16];
+        char SizeStr[24];
 
         tim = Files[Line]->MTime();
         t = localtime(&tim);

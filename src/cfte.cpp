@@ -1849,9 +1849,9 @@ static int LoadFile(const char *WhereName, const char *CfgName, int Level, int o
 
 #if PATHTYPE == PT_UNIXISH
 #       define SEARCH_PATH_LEN 6
-        char dirs[SEARCH_PATH_LEN][MAXPATH];
+        char dirs[SEARCH_PATH_LEN][MAXPATH*2];
 
-        snprintf(dirs[0], MAXPATH, "%s/%s", ConfigDir, CfgName);
+        snprintf(dirs[0], MAXPATH*2, "%s/%s", ConfigDir, CfgName);
         snprintf(dirs[1],  MAXPATH, "~/.efte/%s", CfgName);
         snprintf(dirs[2],  MAXPATH, "%s/share/efte/local/%s", EFTE_INSTALL_DIR, CfgName);
         snprintf(dirs[3],  MAXPATH, "/etc/efte/local/%s", CfgName);
