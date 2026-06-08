@@ -70,7 +70,7 @@ cmake -DCMAKE_INSTALL_PREFIX=/opt/efte .
 
 ```bash
 mkdir build && cd build
-cmake ../src
+cmake ..
 make -j$(nproc)
 ```
 
